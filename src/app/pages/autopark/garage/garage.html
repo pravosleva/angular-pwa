@@ -1,0 +1,126 @@
+<div class="min-h-screen bg-neutral-950 font-sans text-neutral-100 p-4 md:p-8">
+  <div class="max-w-xl mx-auto space-y-6">
+
+    <!-- Заголовок гаража -->
+    <div class="flex justify-between items-center bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl">
+      <div>
+        <h2 class="text-xl font-bold text-neutral-100 tracking-tight">Виртуальный гараж</h2>
+        <p class="text-xs text-neutral-400 mt-1 font-mono">Владелец (TG ID): #{{ tg_chat_id() }}</p>
+      </div>
+      <a routerLink="/auth/login" class="text-xs font-mono text-neutral-500 hover:text-red-400 transition-colors">
+        Выйти
+      </a>
+    </div>
+
+    <!-- Сетевой лоадер фетчинга данных -->
+    @if (isLoading()) {
+    <div
+      class="p-4 bg-neutral-900 border border-neutral-800 rounded-2xl text-center text-sm font-mono text-blue-400 animate-pulse">
+      📡 Синхронизация профиля с сервером pravosleva.pro...
+    </div>
+    }
+
+    <!-- Блок вывода списка машин -->
+    <div class="space-y-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 font-mono pl-1">
+        Доступные автомобили ({{ totalCarsCount() }})
+      </h3>
+
+      <div class="space-y-3">
+        @for (car of uiProjects(); track car.id) {
+        <!-- Карточка автомобиля с нативным ленивым роутингом -->
+        <div [routerLink]="['/autopark', tg_chat_id(), car.id]"
+          class="group p-5 bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-neutral-700 rounded-2xl shadow-md transition-all active:scale-[0.99] cursor-pointer flex justify-between items-center">
+          <div class="space-y-1">
+            <h4 class="text-base font-bold text-neutral-200 group-hover:text-blue-400 transition-colors">
+              {{ car.name }}
+            </h4>
+            <p class="text-xs text-neutral-400 line-clamp-1 font-mono">{{ car.description || 'Нет описания' }}</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <span
+              class="text-xs bg-neutral-950 border border-neutral-800 px-2 py-1 rounded-md text-neutral-400 font-mono">
+              Процессов: {{ car.itemsCount }}
+            </span>
+            <span class="text-neutral-600 group-hover:text-neutral-400 transition-colors">→</span>
+          </div>
+        </div>
+        } @empty {
+        @if (!isLoading()) {
+        <!-- Эффект пустой корзины/гаража -->
+        <div class="p-8 bg-neutral-900 border border-neutral-800 border-dashed rounded-2xl text-center space-y-2">
+          <p class="text-sm font-medium text-neutral-400">В вашем гараже пока нет ни одного автомобиля</p>
+          <p class="text-xs text-neutral-500 font-mono">Воспользуйтесь панелью добавления ниже</p>
+        </div>
+        }
+        }
+      </div>
+    </div>
+
+    <!-- Контейнер для формы создания авто (Шаг 4.2) -->
+    <div id="create-car-anchor" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
+      <h3 class="text-sm font-bold tracking-tight text-neutral-200 font-mono uppercase">
+        🛠️ Запустить новый проект авто
+      </h3>
+      <!-- Сюда будет встроена форма создания из Части 4 -->
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Селектор Бренда -->
+        <div class="flex flex-col">
+          <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Марка:</label>
+          <select [ngModel]="selectedBrand()" (ngModelChange)="onBrandChange($event)"
+            class="bg-neutral-950 border border-neutral-800 p-2 rounded-xl text-sm text-neutral-200 focus:outline-none focus:border-blue-500">
+            <option value="">Выбрать...</option>
+            @for (b of brands(); track b) { <option [value]="b">{{ b }}</option> }
+          </select>
+        </div>
+
+        <!-- Селектор Модели -->
+        <div class="flex flex-col">
+          <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Модель:</label>
+          <select [(ngModel)]="selectedModel" [disabled]="!selectedBrand()"
+            class="bg-neutral-950 border border-neutral-800 p-2 rounded-xl text-sm text-neutral-200 focus:outline-none focus:border-blue-500 disabled:opacity-40">
+            <option value="">Выбрать...</option>
+            @for (m of availableModels(); track m) { <option [value]="m">{{ m }}</option> }
+          </select>
+        </div>
+
+        <!-- Селектор Трансмиссии -->
+        <div class="flex flex-col">
+          <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Коробка:</label>
+          <select [(ngModel)]="selectedTransmission" [disabled]="!selectedModel()"
+            class="bg-neutral-950 border border-neutral-800 p-2 rounded-xl text-sm text-neutral-200 focus:outline-none focus:border-blue-500 disabled:opacity-40">
+            <option value="">Выбрать...</option>
+            @for (t of transmissions(); track t) { <option [value]="t">{{ t }}</option> }
+          </select>
+        </div>
+
+        <!-- Селектор Года -->
+        <div class="flex flex-col">
+          <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Год выпуска:</label>
+          <select [(ngModel)]="selectedYear" [disabled]="!selectedTransmission()"
+            class="bg-neutral-950 border border-neutral-800 p-2 rounded-xl text-sm text-neutral-200 focus:outline-none focus:border-blue-500 disabled:opacity-40">
+            <option value="">Выбрать...</option>
+            @for (y of availableYears(); track y) { <option [value]="y">{{ y }}</option> }
+          </select>
+        </div>
+      </div>
+
+      <!-- Поле ввода пользовательского имени машины -->
+      <div class="flex flex-col pt-2">
+        <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Пользовательское имя (Описание
+          процесса):</label>
+        <input type="text" placeholder="Например: Мой любимый Гольф IV" [ngModel]="carCustomName()"
+          (ngModelChange)="carCustomName.set($event)"
+          class="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-sm focus:outline-none focus:border-blue-500 font-mono" />
+      </div>
+
+      <!-- Кнопка отправки POST-запроса -->
+      <button (click)="createCarProcess()" [disabled]="!isFormValid() || isSubmitting()"
+        class="w-full mt-2 p-3 bg-green-600 hover:bg-green-500 disabled:bg-neutral-800 disabled:text-neutral-500 font-bold rounded-xl text-xs uppercase tracking-wider font-mono transition-all disabled:cursor-not-allowed">
+        @if (isSubmitting()) { <span>📡 Регистрация в рантайме бота...</span> }
+        @else { <span>Добавить машину в гараж +</span> }
+      </button>
+    </div>
+
+  </div>
+</div>
