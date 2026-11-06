@@ -1,6 +1,7 @@
 <div class="min-h-screen bg-neutral-950 font-sans text-neutral-100 p-4 md:p-8">
   <div class="max-w-xl mx-auto space-y-6">
 
+    <!-- Верхняя навигация -->
     <div class="flex items-center justify-between gap-2">
       <a [routerLink]="['/autopark', tg_chat_id()]"
         class="text-xs font-mono text-neutral-400 hover:text-blue-400 transition-colors">
@@ -12,6 +13,7 @@
       </a>
     </div>
 
+    <!-- Сетевой лоадер -->
     @if (isLoading()) {
     <div
       class="p-4 bg-neutral-900 border border-neutral-800 rounded-2xl text-center text-sm font-mono text-blue-400 animate-pulse">
@@ -20,13 +22,14 @@
     }
 
     @if (currentCar(); as car) {
+    <!-- Карточка автомобиля -->
     <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
       <div class="space-y-1">
         <h2 class="text-xl font-bold tracking-tight text-neutral-100">{{ car.name }}</h2>
         <p class="text-sm text-neutral-400 font-mono">{{ car.description || 'Без описания' }}</p>
       </div>
 
-      <!-- 🔥 НОВОЕ: Инпут управления текущим пробегом конкретного авто -->
+      <!-- Инпут пробега -->
       <div class="pt-3 border-t border-neutral-800 flex flex-col gap-2">
         <label class="text-[10px] font-mono uppercase text-neutral-400 tracking-wider">
           Текущий пробег автомобиля (км):
@@ -43,22 +46,45 @@
       </div>
     </div>
 
-    <!-- Список регламентных работ -->
+    <!-- Мониторинг регламентных работ -->
     <div class="space-y-4">
-      <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 font-mono pl-1">
-        Мониторинг расходников и ТО ({{ processes().length }})
-      </h3>
 
+      <!-- 🔥 ИСПРАВЛЕНО: Флекс-контейнер шапки с кнопкой добавления работы -->
+      <div class="flex justify-between items-center pl-1 pr-1">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 font-mono">
+          Мониторинг расходников и ТО ({{ processes().length }})
+        </h3>
+        <button (click)="openCreateModal()"
+          class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 font-bold rounded-lg text-[10px] uppercase font-mono tracking-wider transition-colors shadow-md active:scale-95">
+          Добавить +
+        </button>
+      </div>
+
+      <!-- Список карточек -->
       <div class="space-y-3">
         @for (process of processes(); track process.id) {
-        <div class="p-5 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-md space-y-3">
+        <div class="p-5 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-md space-y-3 group relative">
+
           <div class="flex justify-between items-start">
             <div class="space-y-1 pr-4">
               <h4 class="text-sm font-bold text-neutral-200 leading-snug">{{ process.name }}</h4>
               <p class="text-xs text-neutral-400 leading-relaxed font-sans">{{ process.description }}</p>
             </div>
+
+            <!-- Кнопки управления -->
+            <div class="flex items-center gap-1.5 ml-auto shrink-0">
+              <button (click)="openEditModal(process)"
+                class="p-1.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-blue-400 transition-colors rounded-lg text-xs font-mono">
+                ✏️
+              </button>
+              <button (click)="deleteItemProcess(process.id, process.name)"
+                class="p-1.5 bg-neutral-950 hover:bg-red-950/40 border border-neutral-800 hover:border-red-900/50 text-neutral-400 hover:text-red-400 transition-colors rounded-lg text-xs font-mono">
+                🗑️
+              </button>
+            </div>
           </div>
 
+          <!-- Прогресс-бар износа -->
           <div class="space-y-1.5">
             <div class="flex justify-between text-[10px] font-mono text-neutral-400">
               <span>Последнее ТО: {{ process.lastMileage | number }} км</span>
@@ -102,3 +128,142 @@
     }
   </div>
 </div>
+
+<!-- 🔥 НОВОЕ: Нативное кастомное модальное окно редактирования на Сигналах -->
+@if (isEditModalOpen()) {
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+  <!-- Задний темный фон (Overlay) с размытием -->
+  <div class="absolute inset-0 bg-neutral-950/80 backdrop-blur-sm" (click)="closeEditModal()"></div>
+
+  <!-- Тело модального окна -->
+  <div
+    class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative z-10 space-y-4 animate-scale-up">
+    <div class="flex justify-between items-center border-b border-neutral-800 pb-3">
+      <h3 class="text-base font-bold text-neutral-100 font-mono uppercase">Редактировать работу</h3>
+      <button (click)="closeEditModal()" class="text-neutral-500 hover:text-neutral-300 font-mono text-xs">✕</button>
+    </div>
+
+    <div class="space-y-4">
+      <!-- Поле: Наименование -->
+      <div class="flex flex-col gap-1">
+        <label class="text-[10px] font-mono uppercase text-neutral-400">Наименование:</label>
+        <input type="text" [ngModel]="editItemName()" (ngModelChange)="editItemName.set($event)"
+          [disabled]="isSubmitting()"
+          class="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-white font-sans" />
+      </div>
+
+      <!-- Поле: Описание -->
+      <div class="flex flex-col gap-1">
+        <label class="text-[10px] font-mono uppercase text-neutral-400">Описание:</label>
+        <textarea rows="3" [ngModel]="editItemDescription()" (ngModelChange)="editItemDescription.set($event)"
+          [disabled]="isSubmitting()"
+          class="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-white font-sans resize-none"></textarea>
+      </div>
+
+      <!-- Двухколоночный блок пробегов -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-mono uppercase text-neutral-400">Крайний пробег (км):</label>
+          <input type="number" [ngModel]="editItemMileageLast()" (ngModelChange)="editItemMileageLast.set($event)"
+            [disabled]="isSubmitting()"
+            class="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-white font-mono" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-mono uppercase text-neutral-400">Интервал замены:</label>
+          <input type="number" [ngModel]="editItemMileageDelta()" (ngModelChange)="editItemMileageDelta.set($event)"
+            [disabled]="isSubmitting()"
+            class="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-white font-mono" />
+        </div>
+      </div>
+
+      <!-- Сообщение об ошибке API -->
+      @if (apiError()) {
+      <div
+        class="p-3 bg-red-950/40 border border-red-900/50 rounded-xl text-xs text-red-400 font-mono flex justify-between items-center">
+        <span>⚠️ {{ apiError() }}</span>
+        <button (click)="apiError.set('')" class="text-red-500 font-bold ml-2">✕</button>
+      </div>
+      }
+
+      <!-- Кнопки действий -->
+      <div class="grid grid-cols-2 gap-3 pt-2">
+        <button (click)="closeEditModal()" [disabled]="isSubmitting()"
+          class="p-3 border border-neutral-800 hover:bg-neutral-850 disabled:opacity-40 font-bold rounded-xl text-xs uppercase tracking-wider font-mono transition-colors">
+          Закрыть
+        </button>
+        <button (click)="submitEditForm()" [disabled]="!isEditFormValid() || isSubmitting()"
+          class="p-3 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 font-bold rounded-xl text-xs uppercase tracking-wider font-mono transition-all disabled:cursor-not-allowed flex justify-center items-center">
+          @if (isSubmitting()) { <span class="animate-pulse">📡 Сохранение...</span> }
+          @else { <span>Отправить</span> }
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+}
+
+<!-- 🔥 НОВОЕ: Нативное модальное окно СОЗДАНИЯ новой регламентной работы -->
+@if (isCreateModalOpen()) {
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+  <div class="absolute inset-0 bg-neutral-950/80 backdrop-blur-sm" (click)="closeCreateModal()"></div>
+
+  <div
+    class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative z-10 space-y-4 animate-scale-up">
+    <div class="flex justify-between items-center border-b border-neutral-800 pb-3">
+      <h3 class="text-base font-bold text-neutral-100 font-mono uppercase">Добавить новую работу</h3>
+      <button (click)="closeCreateModal()" class="text-neutral-500 hover:text-neutral-300 font-mono text-xs">✕</button>
+    </div>
+
+    <div class="space-y-4">
+      <div class="flex flex-col gap-1">
+        <label class="text-[10px] font-mono uppercase text-neutral-400">Наименование:</label>
+        <input type="text" [ngModel]="createItemName()" (ngModelChange)="createItemName.set($event)"
+          [disabled]="isSubmitting()" placeholder="Например: Замена моторного масла"
+          class="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-white font-sans" />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-[10px] font-mono uppercase text-neutral-400">Описание:</label>
+        <textarea rows="3" [ngModel]="createItemDescription()" (ngModelChange)="createItemDescription.set($event)"
+          [disabled]="isSubmitting()" placeholder="Укажите бренд расходников или спецификацию допусков..."
+          class="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-white font-sans resize-none"></textarea>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-mono uppercase text-neutral-400">Пробег фиксации (км):</label>
+          <input type="number" [ngModel]="createItemMileageLast()" (ngModelChange)="createItemMileageLast.set($event)"
+            [disabled]="isSubmitting()"
+            class="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-white font-mono" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-mono uppercase text-neutral-400">Интервал ТО (км):</label>
+          <input type="number" [ngModel]="createItemMileageDelta()" (ngModelChange)="createItemMileageDelta.set($event)"
+            [disabled]="isSubmitting()"
+            class="bg-neutral-950 border border-neutral-800 p-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 text-white font-mono" />
+        </div>
+      </div>
+
+      @if (createApiError()) {
+      <div
+        class="p-3 bg-red-950/40 border border-red-900/50 rounded-xl text-xs text-red-400 font-mono flex justify-between items-center">
+        <span>⚠️ {{ createApiError() }}</span>
+        <button (click)="createApiError.set('')" class="text-red-500 font-bold ml-2">✕</button>
+      </div>
+      }
+
+      <div class="grid grid-cols-2 gap-3 pt-2">
+        <button (click)="closeCreateModal()" [disabled]="isSubmitting()"
+          class="p-3 border border-neutral-800 hover:bg-neutral-850 disabled:opacity-40 font-bold rounded-xl text-xs uppercase tracking-wider font-mono transition-colors">
+          Закрыть
+        </button>
+        <button (click)="submitCreateForm()" [disabled]="!isCreateFormValid() || isSubmitting()"
+          class="p-3 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 font-bold rounded-xl text-xs uppercase tracking-wider font-mono transition-all disabled:cursor-not-allowed flex justify-center items-center">
+          @if (isSubmitting()) { <span class="animate-pulse">📡 Создание...</span> }
+          @else { <span>Создать</span> }
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+}

@@ -61,6 +61,26 @@ export class CarDetailsComponent {
   // Реактивный сигнал пробега текущей машины
   public readonly currentVehicleMileage = signal<number>(0);
 
+  // Основные и новые реактивные сигналы для модального окна и состояния
+  public readonly isSubmitting = signal<boolean>(false);
+  public readonly isEditModalOpen = signal<boolean>(false);
+  public readonly apiError = signal<string>('');
+  private readonly refreshTrigger = signal<number>(0);
+
+  // Буферные сигналы для полей редактирования
+  public readonly editItemId = signal<number | null>(null);
+  public readonly editItemName = signal<string>('');
+  public readonly editItemDescription = signal<string>('');
+  public readonly editItemMileageLast = signal<number>(0);
+  public readonly editItemMileageDelta = signal<number>(0);
+
+  public readonly isCreateModalOpen = signal<boolean>(false);
+  public readonly createItemName = signal<string>('');
+  public readonly createItemDescription = signal<string>('');
+  public readonly createItemMileageLast = signal<number>(0);
+  public readonly createItemMileageDelta = signal<number>(0);
+  public readonly createApiError = signal<string>('');
+
   constructor() {
     // Реактивный эффект для синхронизации стейта с localStorage.
     // Отслеживает изменение project_id() и автоматически восстанавливает пробег.
@@ -149,4 +169,323 @@ export class CarDetailsComponent {
       };
     });
   });
+
+  /**
+   * Вычисляемая валидация формы редактирования «на лету»
+   */
+  public readonly isEditFormValid = computed<boolean>(() => {
+    return Boolean(
+      this.editItemId() &&
+      this.editItemName().trim().length > 0 &&
+      this.editItemDescription().trim().length > 0 &&
+      this.editItemMileageLast() >= 0 &&
+      this.editItemMileageDelta() > 0
+    );
+  });
+
+  /**
+   * Открытие модального окна и наполнение буферных сигналов начальным состоянием
+   */
+  public openEditModal(item: any): void {
+    this.apiError.set('');
+    this.editItemId.set(item.id);
+    this.editItemName.set(item.name);
+    this.editItemDescription.set(item.description);
+    this.editItemMileageLast.set(item.lastMileage || item.mileage?.last || 0);
+    this.editItemMileageDelta.set(item.deltaMileage || item.mileage?.delta || 40000);
+
+    this.isEditModalOpen.set(true);
+    console.log(`🔬 [Edit Modal]: Сессия редактирования запущена для элемента #${item.id}`);
+  }
+
+  /**
+   * Закрытие модального окна и полная очистка буферов
+   */
+  public closeEditModal(): void {
+    this.isEditModalOpen.set(false);
+    this.editItemId.set(null);
+    this.editItemName.set('');
+    this.editItemDescription.set('');
+    this.editItemMileageLast.set(0);
+    this.editItemMileageDelta.set(0);
+    this.apiError.set('');
+  }
+
+  public readonly isCreateFormValid = computed<boolean>(() => {
+    return Boolean(
+      this.createItemName().trim().length > 0 &&
+      this.createItemDescription().trim().length > 0 &&
+      this.createItemMileageLast() >= 0 &&
+      this.createItemMileageDelta() > 0
+    );
+  });
+
+  /**
+   * Отправка POST-запроса на обновление регламентной работы
+   */
+  // public submitEditForm(): void {
+  //   if (!this.isEditFormValid() || this.isSubmitting()) return;
+
+  //   this.isSubmitting.set(true);
+  //   this.apiError.set('');
+
+  //   const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/project/update-item';
+  //   const payload = {
+  //     chat_id: String(Number(this.tg_chat_id())),
+  //     project_id: String(Number(this.project_id())),
+  //     item: {
+  //       id: this.editItemId(),
+  //       name: this.editItemName().trim(),
+  //       description: this.editItemDescription().trim(),
+  //       mileage: {
+  //         last: Number(this.editItemMileageLast()),
+  //         delta: Number(this.editItemMileageDelta())
+  //       }
+  //     }
+  //   };
+
+  //   this.http.post<any>(apiUrl, payload, { withCredentials: true }).pipe(
+  //     catchError((err) => {
+  //       console.error('🚨 [EditItem API Error]:', err);
+  //       this.apiError.set('Не удалось обновить позицию.');
+  //       return of(null);
+  //     })
+  //   ).subscribe({
+  //     next: (res) => {
+  //       this.isSubmitting.set(false);
+  //       if (res && res.ok === true) {
+  //         console.log('🟢 [EditItem API Success]: Позиция обновлена.');
+  //         this.closeEditModal();
+  //         this.refreshTrigger.update(v => v + 1); // 🔥 Автообновление списка
+  //       } else {
+  //         this.apiError.set(res?.message || 'Ошибка обновления позиции.');
+  //       }
+  //     }
+  //   });
+  // }
+
+  /**
+   * Отправка POST-запроса на удаление регламентной работы с конфирмом
+   */
+  public deleteItemProcess(itemId: number, itemName: string): void {
+    if (!confirm(`Вы действительно хотите удалить позицию "${itemName}"?`)) return;
+
+    this.isLoading.set(true);
+
+    const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/project/remove-item';
+    const payload = {
+      chat_id: String(Number(this.tg_chat_id())),
+      project_id: String(Number(this.project_id())),
+      item_id: itemId
+    };
+
+    this.http.post<any>(apiUrl, payload, { withCredentials: true }).pipe(
+      catchError((err) => {
+        console.error('🚨 [DeleteItem API Error]:', err);
+        return of(null);
+      })
+    ).subscribe({
+      next: (res) => {
+        this.isLoading.set(false);
+        if (res && res.ok === true) {
+          console.log('🟢 [DeleteItem API Success]: Позиция успешно удалена.');
+          this.refreshTrigger.update(v => v + 1); // 🔥 Автообновление списка
+        } else {
+          alert(res?.message || 'Бэкенд отклонил удаление позиции.');
+        }
+      }
+    });
+  }
+
+  /**
+   * 🔥 НОВОЕ: Открытие модального окна в режиме СОЗДАНИЯ новой работы
+   */
+  // public openCreateModal(): void {
+  //   this.apiError.set('');
+  //   this.editItemId.set(null); // Указывает рантайму, что это создание, а не редактирование
+  //   this.editItemName.set('');
+  //   this.editItemDescription.set('');
+  //   this.editItemMileageLast.set(this.currentVehicleMileage()); // Подставляем живой пробег как дефолтный
+  //   this.editItemMileageDelta.set(10000); // Дефолтный интервал для нового процесса
+
+  //   this.isEditModalOpen.set(true);
+  //   console.log('🔬 [Create Modal]: Сессия инициализации новой регламентной работы запущена.');
+  // }
+
+  /**
+   * 🔥 ОБНОВЛЕНО: Универсальный метод отправки (Создание или Редактирование)
+   */
+  // public submitEditForm(): void {
+  //   if (!this.isEditFormValid() || this.isSubmitting()) return;
+
+  //   this.isSubmitting.set(true);
+  //   this.apiError.set('');
+
+  //   // const isCreateMode = this.editItemId() === null;
+
+  //   // Переключаем эндпоинты на основе режима рантайма
+  //   const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/project/update-item';
+
+  //   // Формируем payload. Бэкенд add-item обычно не требует id внутри item
+  //   const payload: any = {
+  //     chat_id: String(Number(this.tg_chat_id())),
+  //     project_id: String(Number(this.project_id())),
+  //     item: {
+  //       name: this.editItemName().trim(),
+  //       description: this.editItemDescription().trim(),
+  //       mileage: {
+  //         last: Number(this.editItemMileageLast()),
+  //         delta: Number(this.editItemMileageDelta())
+  //       }
+  //     }
+  //   };
+
+  //   // Если мы в режиме редактирования, подмешиваем существующий id записи
+  //   if (!isCreateMode) {
+  //     payload.item.id = this.editItemId();
+  //   }
+
+  //   console.log(`📡 [Car Details API]: Режим: ${isCreateMode ? 'Создание' : 'Редактирование'}. Payload:`, payload);
+
+  //   this.http.post<any>(apiUrl, payload, { withCredentials: true }).pipe(
+  //     catchError((err) => {
+  //       console.error('🚨 [Project Item API Error]:', err);
+  //       this.apiError.set(`Не удалось ${isCreateMode ? 'создать' : 'обновить'} позицию.`);
+  //       return of(null);
+  //     })
+  //   ).subscribe({
+  //     next: (res) => {
+  //       this.isSubmitting.set(false);
+  //       if (res && res.ok === true) {
+  //         console.log(`🟢 [Project Item API Success]: Позиция успешно ${isCreateMode ? 'создана' : 'обновлена'}.`);
+  //         this.closeEditModal();
+  //         this.refreshTrigger.update(v => v + 1); // Реактивно обновляем список на экране
+  //       } else {
+  //         this.apiError.set(res?.message || 'Ошибка обработки транзакции бэкендом.');
+  //       }
+  //     }
+  //   });
+  // }
+
+    /**
+   * Отправка POST-запроса на обновление регламентной работы (Редактирование)
+   */
+  public submitEditForm(): void {
+    if (!this.isEditFormValid() || this.isSubmitting()) return;
+
+    this.isSubmitting.set(true);
+    this.apiError.set('');
+
+    const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/project/update-item';
+
+    const payload = {
+      chat_id: String(Number(this.tg_chat_id())),
+      project_id: String(Number(this.project_id())),
+      item: {
+        id: this.editItemId(),
+        name: this.editItemName().trim(),
+        description: this.editItemDescription().trim(),
+        mileage: {
+          last: Number(this.editItemMileageLast()),
+          delta: Number(this.editItemMileageDelta())
+        }
+      }
+    };
+
+    console.log('📡 [Car Details API]: Отправка payload обновления позиции...', payload);
+
+    this.http.post<any>(apiUrl, payload, { withCredentials: true }).pipe(
+      catchError((err) => {
+        console.error('🚨 [EditItem API Error]:', err);
+        this.apiError.set('Не удалось обновить позицию.');
+        return of(null);
+      })
+    ).subscribe({
+      next: (res) => {
+        this.isSubmitting.set(false);
+
+        if (res && res.ok === true) {
+          console.log('🟢 [EditItem API Success]: Позиция успешно обновлена.');
+          this.closeEditModal(); // Закрываем модалку и чистим буферы
+          this.refreshTrigger.update(v => v + 1); // 🔥 Инвалидируем стейт для автообновления списка в UI
+        } else {
+          this.apiError.set(res?.message || 'Ошибка обновления позиции бэкендом.');
+        }
+      }
+    });
+  }
+
+  /**
+   * Открытие модального окна создания новой работы
+   */
+  public openCreateModal(): void {
+    this.createApiError.set('');
+    this.createItemName.set('');
+    this.createItemDescription.set('');
+    // Автоподстановка: берем живой пробег машины из localStorage как стартовую точку
+    this.createItemMileageLast.set(this.currentVehicleMileage());
+    this.createItemMileageDelta.set(10000); // Дефолтный регламентный интервал (10к км)
+
+    this.isCreateModalOpen.set(true);
+    console.log('🔬 [Create Modal]: Сессия инициализации нового процесса ТО запущена.');
+  }
+
+  public closeCreateModal(): void {
+    this.isCreateModalOpen.set(false);
+    this.createItemName.set('');
+    this.createItemDescription.set('');
+    this.createItemMileageLast.set(0);
+    this.createItemMileageDelta.set(0);
+    this.createApiError.set('');
+  }
+
+  /**
+   * Отправка POST-запроса на создание новой регламентной работы
+   */
+  public submitCreateForm(): void {
+    if (!this.isCreateFormValid() || this.isSubmitting()) return;
+
+    this.isSubmitting.set(true);
+    this.createApiError.set('');
+
+    // const apiUrl = 'https://pravosleva.pro'; // Корневой шлюз, эндпоинт /project/add-item подставится раутером axios
+    // Для сохранения сквозной совместимости с вашей экспресс-архитектурой бэкенда, шлем на прямой урл:
+    const directAddItemUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/project/add-item';
+
+    const payload = {
+      chat_id: String(Number(this.tg_chat_id())),
+      project_id: String(Number(this.project_id())),
+      item: {
+        name: this.createItemName().trim(),
+        description: this.createItemDescription().trim(),
+        mileage: {
+          last: Number(this.createItemMileageLast()),
+          delta: Number(this.createItemMileageDelta())
+        }
+      }
+    };
+
+    console.log('📡 [CreateItem API]: Инициализация отправки payload...', payload);
+
+    this.http.post<any>(directAddItemUrl, payload, { withCredentials: true }).pipe(
+      catchError((err) => {
+        console.error('🚨 [CreateItem API Error]: Critical network crash:', err);
+        this.createApiError.set(err?.message || 'Не удалось связаться с сервером создания.');
+        return of(null);
+      })
+    ).subscribe({
+      next: (res) => {
+        this.isSubmitting.set(false);
+
+        if (res && res.ok === true) {
+          console.log('🟢 [CreateItem API Success]: Новая позиция успешно добавлена в сервисную книжку.');
+          this.closeCreateModal(); // Сворачиваем окно и чистим буферы
+          this.refreshTrigger.update(v => v + 1); // 🔥 ТРИГГЕРИМ РЕАКТИВНОЕ ОБНОВЛЕНИЕ СПИСКА
+        } else {
+          console.warn('⚠️ [CreateItem API Warning]: Бэкенд отклонил добавление позиции.');
+          this.createApiError.set(res?.message || 'Сервер отклонил создание регламентной работы.');
+        }
+      }
+    });
+  }
 }
