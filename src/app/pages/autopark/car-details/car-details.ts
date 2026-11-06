@@ -1,7 +1,7 @@
 import { Component, signal, computed, inject, input, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { of, combineLatest } from 'rxjs';
@@ -11,6 +11,7 @@ import {
   // CarProject,
   CarItem,
 } from '../garage/garage';
+import { AutoparkStoreService } from '../../../services/autopark-store.service';
 
 /**
  * Расширенные интерфейсы для UI-отображения прогресса износа/сервиса
@@ -53,6 +54,8 @@ type TProjectDataResponse = {
 })
 export class CarDetailsComponent {
   private readonly http = inject(HttpClient);
+  private readonly router = inject(Router);
+  private readonly store = inject(AutoparkStoreService);
 
   public readonly tg_chat_id = input.required<string>();
   public readonly project_id = input.required<string>();
@@ -80,6 +83,8 @@ export class CarDetailsComponent {
   public readonly createItemMileageLast = signal<number>(0);
   public readonly createItemMileageDelta = signal<number>(0);
   public readonly createApiError = signal<string>('');
+
+  public readonly vehicleDeleteError = signal<string>('');
 
   constructor() {
     // Реактивный эффект для синхронизации стейта с localStorage.
@@ -372,6 +377,60 @@ export class CarDetailsComponent {
         } else {
           console.warn('⚠️ [CreateItem API Warning]: Бэкенд отклонил добавление позиции.');
           this.createApiError.set(res?.message || 'Сервер отклонил создание регламентной работы.');
+        }
+      }
+    });
+  }
+
+  /**
+   * Отправка POST-запроса на полное удаление автомобиля из гаража с конфирмом и редиректом
+   */
+  public deleteVehicleProcess(vehicleName: string): void {
+    if (!confirm(`Критическое действие! Вы действительно хотите безвозвратно удалить автомобиль "${vehicleName}" и всю историю его процессов ТО?`)) {
+      return;
+    }
+
+    this.isLoading.set(true);
+    this.vehicleDeleteError.set('');
+
+    const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/project/remove';
+    const currentProjectId = this.project_id();
+
+    const payload = {
+      chat_id: String(Number(this.tg_chat_id())),
+      project_id: currentProjectId
+    };
+
+    console.log('📡 [Car Details API]: Запуск процесса удаления проекта авто...', payload);
+
+    this.http.post<any>(apiUrl, payload, { withCredentials: true }).pipe(
+      catchError((err) => {
+        console.error('🚨 [DeleteVehicle API Error]:', err);
+        this.vehicleDeleteError.set(err?.message || 'Системный сбой сети при удалении проекта.');
+        return of(null);
+      })
+    ).subscribe({
+      next: (res) => {
+        this.isLoading.set(false);
+
+        if (res && res.ok === true) {
+          console.log('裁 [DeleteVehicle API Success]: Автомобиль успешно удален из базы данных.');
+
+          // 1. Очищаем изолированное хранилище пробега для этой конкретной машины
+          localStorage.removeItem(`autopark_mileage_${currentProjectId}`);
+
+          // 2. ИНВАЛИДАЦИЯ КЭША ВСЕГО ГАРАЖА: Очищаем кэш в глобальном синглтон-сторе,
+          // чтобы компонент GarageComponent при возврате гарантированно скачал свежий список проектов!
+          this.store.clearCache();
+
+          // 3. Выполняем навигацию назад в гараж пользователя
+          this.router.navigate(['/autopark', this.tg_chat_id()])
+            .then(() => console.log('🚀 Редирект в виртуальный гараж выполнен успешно.'))
+            .catch(err => console.error('🚨 Ошибка редиректа роутера:', err));
+
+        } else {
+          console.warn('⚠️ [DeleteVehicle API Warning]: Бэкенд отклонил удаление.');
+          this.vehicleDeleteError.set(res?.message || 'Сервер отклонил удаление данного автомобиля.');
         }
       }
     });
