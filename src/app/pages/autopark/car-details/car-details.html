@@ -1,0 +1,104 @@
+<div class="min-h-screen bg-neutral-950 font-sans text-neutral-100 p-4 md:p-8">
+  <div class="max-w-xl mx-auto space-y-6">
+
+    <div class="flex items-center justify-between gap-2">
+      <a [routerLink]="['/autopark', tg_chat_id()]"
+        class="text-xs font-mono text-neutral-400 hover:text-blue-400 transition-colors">
+        ← Вернуться в гараж
+      </a>
+      <a [routerLink]="['/autopark', tg_chat_id(), project_id(), 'report']"
+        class="text-xs font-mono text-neutral-400 hover:text-blue-400 transition-colors">
+        Report →
+      </a>
+    </div>
+
+    @if (isLoading()) {
+    <div
+      class="p-4 bg-neutral-900 border border-neutral-800 rounded-2xl text-center text-sm font-mono text-blue-400 animate-pulse">
+      📡 Чтение сервисной книжки из рантайма бота...
+    </div>
+    }
+
+    @if (currentCar(); as car) {
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
+      <div class="space-y-1">
+        <h2 class="text-xl font-bold tracking-tight text-neutral-100">{{ car.name }}</h2>
+        <p class="text-sm text-neutral-400 font-mono">{{ car.description || 'Без описания' }}</p>
+      </div>
+
+      <!-- 🔥 НОВОЕ: Инпут управления текущим пробегом конкретного авто -->
+      <div class="pt-3 border-t border-neutral-800 flex flex-col gap-2">
+        <label class="text-[10px] font-mono uppercase text-neutral-400 tracking-wider">
+          Текущий пробег автомобиля (км):
+        </label>
+        <input type="number" [ngModel]="currentVehicleMileage()" (ngModelChange)="updateMileage($event)"
+          placeholder="Введите текущий пробег..."
+          class="w-full p-2.5 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:border-blue-500 font-mono text-sm text-white transition-colors" />
+      </div>
+
+      <div class="flex flex-wrap gap-2 text-[10px] font-mono pt-1">
+        <span class="bg-neutral-950 border border-neutral-800 px-2 py-1 rounded text-neutral-400">
+          ID проекта: {{ project_id() }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Список регламентных работ -->
+    <div class="space-y-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-neutral-400 font-mono pl-1">
+        Мониторинг расходников и ТО ({{ processes().length }})
+      </h3>
+
+      <div class="space-y-3">
+        @for (process of processes(); track process.id) {
+        <div class="p-5 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-md space-y-3">
+          <div class="flex justify-between items-start">
+            <div class="space-y-1 pr-4">
+              <h4 class="text-sm font-bold text-neutral-200 leading-snug">{{ process.name }}</h4>
+              <p class="text-xs text-neutral-400 leading-relaxed font-sans">{{ process.description }}</p>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-[10px] font-mono text-neutral-400">
+              <span>Последнее ТО: {{ process.lastMileage | number }} км</span>
+              <span class="font-bold" [ngClass]="{
+                        'text-green-400': process.progressPercent < 70,
+                        'text-yellow-400': process.progressPercent >= 70 && process.progressPercent < 90,
+                        'text-red-400': process.progressPercent >= 90
+                      }">
+                Износ: {{ process.progressPercent }}%
+              </span>
+            </div>
+
+            <div class="w-full h-2 bg-neutral-950 rounded-full overflow-hidden border border-neutral-800">
+              <div class="h-full transition-all duration-500 rounded-full"
+                [style.width.%]="process.progressPercent > 100 ? 100 : process.progressPercent" [ngClass]="{
+                          'bg-green-500': process.progressPercent < 70,
+                          'bg-yellow-500': process.progressPercent >= 70 && process.progressPercent < 90,
+                          'bg-red-500': process.progressPercent >= 90
+                        }"></div>
+            </div>
+
+            <div class="text-[9px] font-mono text-neutral-500 text-right">
+              Интервал: +{{ process.deltaMileage | number }} км
+            </div>
+          </div>
+        </div>
+        } @empty {
+        <div
+          class="p-8 bg-neutral-900 border border-neutral-800 border-dashed rounded-2xl text-center text-sm text-neutral-500 font-mono">
+          🔬 Процессы обслуживания для данной машины не зарегистрированы.
+        </div>
+        }
+      </div>
+    </div>
+    } @else {
+    @if (!isLoading()) {
+    <div class="p-6 bg-red-950/30 border border-red-900/50 rounded-2xl text-center text-sm font-mono text-red-400">
+      ❌ Ошибка рантайма: Автомобиль с ID {{ project_id() }} не найден в вашем гараже.
+    </div>
+    }
+    }
+  </div>
+</div>
