@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { of } from 'rxjs';
+import { of, combineLatest } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, map, startWith, switchMap, tap } from 'rxjs/operators';
 import { AutoparkStoreService } from '../../../services/autopark-store.service';
 
@@ -69,6 +69,13 @@ type BrandModelsResponse = {
   }
 }
 
+export interface UIGenerationItem {
+  id: number;
+  name: string;      // Название поколения, например: "III (F40)"
+  yearsRange: string; // Строка годов, например: "(2019 - н.в.)"
+  imageUrl: string | null; // Ссылка на миниатюру картинки с S3 Uremont
+}
+
 // Вспомогательный интерфейс для удобного рендеринга списков в шаблоне
 export interface UIProjectItem {
   id: string;
@@ -85,6 +92,9 @@ export interface UIProjectItem {
   styles: []
 })
 export class GarageComponent {
+  // Сигнал-модификатор версии для принудительного обновления потока
+  private readonly refreshTrigger = signal<number>(0);
+
   // 1. Внедряем системные зависимости и наш глобальный стор-синглтон
   private readonly http = inject(HttpClient);
   private readonly store = inject(AutoparkStoreService);
@@ -95,53 +105,53 @@ export class GarageComponent {
    * Angular рантаймом автоматически заполнит его значением из пути /autopark/:tg_chat_id
    */
   public readonly tg_chat_id = input.required<string>();
-
-  // 3. Локальный сигнал для отображения состояния фетчинга данных
   public readonly isLoading = signal<boolean>(false);
 
   /**
-   * 3. Умный реактивный мост с поддержкой глобального кэша
-   * Трансформирует изменения инпута tg_chat_id в поток данных
+   * 3. Умный реактивный мост с поддержкой глобального кэша и триггера обновления
+   * Синхронизирует данные при изменении URL или принудительном инкременте версии формы
    */
   private readonly apiResponse = toSignal<AutoparkUserResponse>(
-    toObservable(this.tg_chat_id).pipe(
+    combineLatest([
+      toObservable(this.tg_chat_id),
+      toObservable(this.refreshTrigger)
+    ]).pipe(
       debounceTime(50),
-      distinctUntilChanged(),
+      distinctUntilChanged((prev, curr) => prev[0] === curr[0] && prev[1] === curr[1]),
       tap(() => this.isLoading.set(true)),
+      // Извлекаем строго первый аргумент (chatId) для передачи в switchMap
+      map(([chatId]) => chatId),
+      // src/app/pages/autopark/garage/garage.ts (Обновленный apiResponse - Часть 1 из 2)
+
       switchMap((chatId) => {
         if (!chatId || Number.isNaN(Number(chatId))) {
           return of({ ok: false } as AutoparkUserResponse);
         }
 
-        // Проверяем наличие валидных данных в глобальном синглтон-сторе
+        // Проверка кэша в глобальном синглтон-сторе
         const cachedData = this.store.cachedUserResponse();
-        if (cachedData && cachedData.ok === true && cachedData.projects) {
-          console.log('🟢 [Garage UI]: Данные успешно извлечены из глобального кэша authGuard.');
-          return of(cachedData); // Мгновенный синхронный возврат без curl-запроса в сеть
+        if (cachedData?.ok === true && cachedData.projects) {
+          return of(cachedData); // Возврат из кэша
         }
 
-        console.log('📡 [Garage UI]: Кэш пуст или невалиден. Выполняю сетевой POST-запрос check-user...');
-        const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/check-user';
-        const body = { tg: { chat_id: Number(chatId) } };
+        // Сетевой POST-запрос при отсутствии кэша
         return this.http.post<AutoparkUserResponse>(
-          apiUrl,
-          body,
+          'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/check-user',
+          { tg: { chat_id: Number(chatId) } },
           { withCredentials: true }
         ).pipe(
           tap((res) => {
-            if (res && res.ok === true) {
-              console.log('💾 [Garage UI]: Сетевой ответ успешно сохранен в глобальный кэш стора.');
-              this.store.cachedUserResponse.set(res); // Заполняем кэш для всей панели
+            if (res?.ok === true) {
+              this.store.cachedUserResponse.set(res);
             }
           }),
           catchError((err) => {
-            console.error('🚨 [Garage Net Error]: Не удалось загрузить автомобили из сети:', err);
+            console.error('🚨 [Garage Net Error]:', err);
             return of({ ok: false } as AutoparkUserResponse);
           })
         );
       }),
       tap(() => this.isLoading.set(false)),
-      // Гарантируем начальное состояние для computed-графа
       startWith({ ok: false, projects: {} } as AutoparkUserResponse)
     ),
     { requireSync: true }
@@ -177,6 +187,8 @@ export class GarageComponent {
   // Статические списки и состояния полей формы на базе Signal
   public readonly brands = signal<string[]>(['Volkswagen', 'Audi', 'BMW', 'Skoda', 'Toyota']);
   public readonly selectedBrand = signal<string>('');
+  // Локальный буфер для хранения полной структуры ответа API моделей
+  private readonly rawModelsResponse = signal<BrandModelsResponse | null>(null);
   /**
    * 🔥 НОВОЕ: Динамический фетчинг моделей на основе Сигнал-графа
    * При изменении selectedBrand() автоматически делает GET-запрос к API
@@ -194,6 +206,11 @@ export class GarageComponent {
         console.log(`📡 [Garage API]: Запрос списка моделей для бренда: ${brand}...`);
 
         return this.http.get<BrandModelsResponse>(apiUrl).pipe(
+          tap(res => {
+            if (res && res.ok === true) {
+              this.rawModelsResponse.set(res);
+            }
+          }),
           map(res => (res && res.ok === true && res.models) ? res.models : []),
           catchError((err) => {
             console.error(`🚨 [Garage API Error]: Ошибка загрузки моделей для ${brand}:`, err);
@@ -210,28 +227,101 @@ export class GarageComponent {
 
 
   public readonly selectedModel = signal<string>('');
+  // 🔥 НОВОЕ: Сигнал для хранения ID выбранного поколения автомобиля
+  public readonly selectedGenerationId = signal<number | null>(null);
+
+  public readonly availableGenerations = computed<UIGenerationItem[]>(() => {
+    const targetModelName = this.selectedModel();
+    const rawData = this.rawModelsResponse();
+
+    if (!targetModelName || !rawData || !rawData.byUremont || !rawData.byUremont.models) {
+      return [];
+    }
+
+    const foundModel = rawData.byUremont.models.find(
+      (m) => m.name.toLowerCase() === targetModelName.toLowerCase()
+    );
+
+    if (!foundModel || !foundModel.generations) return [];
+
+    return foundModel.generations.map((gen) => {
+      const finish = gen.finish_year === null ? 'н.в.' : gen.finish_year;
+
+      // Хирургически извлекаем url миниатюры 140x140, если она существует в массиве images
+      const hasThumb = gen.images && gen.images.length > 0 && gen.images[0].thumb_140_140;
+      const imageUrl = hasThumb ? gen.images[0].thumb_140_140 : null;
+
+      return {
+        id: gen.id,
+        name: gen.generation_name,
+        yearsRange: `(${gen.start_year} - ${finish})`,
+        imageUrl: imageUrl
+      };
+    });
+  });
+  public castToString(value: number): string {
+    return String(value);
+  }
   public readonly selectedTransmission = signal<string>('');
   public readonly selectedYear = signal<string>('');
   public readonly carCustomName = signal<string>('');
 
   public readonly isSubmitting = signal<boolean>(false);
 
-  // Динамический диапазон годов (2000–2026) при выбранной модели
+  /**
+   * Динамический диапазон годов, рассчитываемый строго под временные рамки выбранного поколения
+   */
   public readonly availableYears = computed<string[]>(() => {
-    if (!this.selectedModel()) return [];
-    return Array.from({ length: 27 }, (_, i) => String(2026 - i));
+    const targetGenId = this.selectedGenerationId(); // Теперь это чистый number | null
+    const targetModelName = this.selectedModel();
+    const rawData = this.rawModelsResponse();
+
+    if (!targetGenId || !targetModelName || !rawData?.byUremont?.models) {
+      return [];
+    }
+
+    const foundModel = rawData.byUremont.models.find(
+      (m) => m.name.toLowerCase() === targetModelName.toLowerCase()
+    );
+    if (!foundModel?.generations) return [];
+
+    // Ищем поколение напрямую по числу без приведения типов
+    const foundGen = foundModel.generations.find((g) => g.id === targetGenId);
+    if (!foundGen) return [];
+
+    const minYear = foundGen.start_year;
+    const maxYear = foundGen.finish_year === null ? 2026 : foundGen.finish_year;
+
+    if (!minYear || !maxYear || minYear > maxYear) return [];
+
+    const yearsCount = maxYear - minYear + 1;
+    return Array.from({ length: yearsCount }, (_, i) => String(maxYear - i));
   });
 
-  // Валидация формы "на лету" (бренд, модель, КПП, год и длина имени > 2)
+  // Расширенная валидация формы "на лету" (теперь учитывает и выбранное поколение)
   public readonly isFormValid = computed<boolean>(() =>
-    Boolean(this.selectedBrand() && this.selectedModel() && this.selectedTransmission() && this.selectedYear() && this.carCustomName().trim().length > 2)
+    Boolean(
+      this.selectedBrand() &&
+      this.selectedModel() &&
+      this.selectedGenerationId() && // 🔥 ДОБАВЛЕНО В ВАЛИДАЦИЮ
+      this.selectedTransmission() &&
+      this.selectedYear() &&
+      this.carCustomName().trim().length > 2
+    )
   );
 
   // Сброс зависимых полей при смене бренда
   public onBrandChange(brand: string): void {
     this.selectedBrand.set(brand);
     this.selectedModel.set('');
+    this.selectedGenerationId.set(null); // 🔥 УСТАНАВЛИВАЕМ null
     this.selectedTransmission.set('');
+    this.selectedYear.set('');
+  }
+
+  public onModelChange(model: string): void {
+    this.selectedModel.set(model);
+    this.selectedGenerationId.set(null); // 🔥 УСТАНАВЛИВАЕМ null
     this.selectedYear.set('');
   }
 
@@ -240,55 +330,41 @@ export class GarageComponent {
    */
   public createCarProcess(): void {
     if (!this.isFormValid() || this.isSubmitting()) return;
-
     this.isSubmitting.set(true);
-    console.log('📡 [Garage UI Form]: Инициализирована сборка структуры автомобиля...');
-
-    // Компонуем имя машины по правилам платформы Autopark
-    const formattedProjectName = `${this.selectedBrand()} ${this.selectedModel()}, ${this.selectedTransmission()}, ${this.selectedYear()}`;
-    const currentChatId = Number(this.tg_chat_id());
-
-    const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/project/create';
 
     const body = {
-      chat_id: String(currentChatId),
-      name: formattedProjectName,
+      chat_id: String(Number(this.tg_chat_id())),
+      name: `${this.selectedBrand()} ${this.selectedModel()}, ${this.selectedTransmission()}, ${this.selectedYear()}`,
       description: this.carCustomName().trim()
     };
-    this.http.post<{ ok: boolean; message?: string }>(
-      apiUrl,
+
+    this.http.post<{ ok: boolean }>(
+      'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/project/create',
       body,
       { withCredentials: true }
-    ).pipe(
-      catchError((err) => {
-        console.error('🚨 [Garage API Error]: Не удалось добавить автомобиль:', err);
-        return of({ ok: false });
-      })
-    ).subscribe({
-      next: (res) => {
-        console.log(res)
-        this.isSubmitting.set(false);
+    )
+      .pipe(catchError(() => of({ ok: false })))
+      .subscribe({
+        next: (res) => {
+          this.isSubmitting.set(false);
 
-        if (res && res.ok === true) {
-          console.log('🟢 [Garage API Success]: Автомобиль успешно зарегистрирован на бэкенде.');
+          if (res && res.ok === true) {
+            console.log('🟢 [Garage API Success]: Автомобиль зарегистрирован на бэкенде.');
 
-          // 1. Очищаем локальные Сигналы формы
-          this.carCustomName.set('');
-          this.selectedBrand.set('');
-          this.selectedModel.set('');
-          this.selectedTransmission.set('');
-          this.selectedYear.set('');
+            // 1. Очищаем локальные Сигналы формы
+            this.carCustomName.set('');
+            this.selectedBrand.set('');
+            this.selectedModel.set('');
+            this.selectedTransmission.set('');
+            this.selectedYear.set('');
 
-          // 2. ИНВАЛИДАЦИЯ КЭША СТОРА:
-          // Сброс кэша автоматически сработает наapiResponse() (из Части 3),
-          // потому что при следующем цикле Change Detection кэш окажется null,
-          // и поток выполнит чистый сетевой перезапрос check-user для обновления UI!
-          this.store.clearCache();
-        } else {
-          console.warn('⚠️ [Garage API Warning]: Бэкенд отклонил создание проекта.');
+            // 2. ИНВАЛИДАЦИЯ КЭША И ОБНОВЛЕНИЕ ГРАФА:
+            this.store.clearCache(); // Очищаем кэш синглтона
+            this.refreshTrigger.update(v => v + 1); // Инкрементируем триггер для перезапуска switchMap
+          } else {
+            console.warn('⚠️ [Garage API Warning]: Бэкенд отклонил создание проекта.');
+          }
         }
-      }
-    });
+      });
   }
-
 }
