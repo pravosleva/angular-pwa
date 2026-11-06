@@ -17,7 +17,7 @@ export const authGuard: CanActivateFn = (route, state): Observable<boolean | Url
 
   // 1. Пытаемся достать tg_chat_id из параметров текущего пути (например, /autopark/432590698)
   // или из родительских маршрутов, если это вложенный роут
-  const chat_id = route.paramMap.get('tg_chat_id') || route.parent?.paramMap.get('tg_chat_id');
+  const chat_id = route.paramMap.get('tg_chat_id');
 
   // Если в УРЛе нет chat_id (например, зашли просто на /autopark),
   // но для check-user он критически необходим — можно заложить фолбек или пустить,

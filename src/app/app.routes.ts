@@ -10,43 +10,23 @@ export const appRoutes: Routes = [
   },
 
   // -- TODO: 2. Группа приватных роутов виртуального гаража (Защищены единым authGuard)
+  // 2. Плоские приватные маршруты (Защищены напрямую)
   {
     path: 'autopark',
+    loadComponent: () => import('./pages/autopark/dashboard/dashboard').then(m => m.DashboardComponent),
     canActivate: [authGuard],
-    children: [
-      {
-        path: '',
-        loadComponent: () => import('./pages/autopark/dashboard/dashboard').then(m => m.DashboardComponent),
-        title: 'AutoPark | Главная'
-      },
-      {
-        path: ':tg_chat_id',
-        loadComponent: () => import('./pages/autopark/garage/garage').then(m => m.GarageComponent),
-        title: 'AutoPark | Виртуальный гараж'
-      },
-      // {
-      //   path: ':tg_chat_id/:project_id',
-      //   loadComponent: () => import('./pages/autopark/car-details/car-details').then(m => m.CarDetailsComponent),
-      //   title: 'AutoPark | Просмотр автомобиля'
-      // }
-    ]
+    title: 'AutoPark | Главная'
   },
-  // --
-
-  // -- NOTE: Exp (временно публичные роуты)
-  // {
-  //   path: 'autopark',
-  //   loadComponent: () => import('./pages/autopark/dashboard/dashboard').then(m => m.DashboardComponent),
-  //   title: 'AutoPark | Главная'
-  // },
-  // {
-  //   path: 'autopark/:tg_chat_id',
-  //   loadComponent: () => import('./pages/autopark/garage/garage').then(m => m.GarageComponent),
-  //   title: 'AutoPark | Виртуальный гараж'
-  // },
+  {
+    path: 'autopark/:tg_chat_id',
+    loadComponent: () => import('./pages/autopark/garage/garage').then(m => m.GarageComponent),
+    canActivate: [authGuard],
+    title: 'AutoPark | Виртуальный гараж'
+  },
   {
     path: 'autopark/:tg_chat_id/:project_id',
     loadComponent: () => import('./pages/autopark/car-details/car-details').then(m => m.CarDetailsComponent),
+    canActivate: [authGuard],
     title: 'AutoPark | Просмотр автомобиля'
   },
   // --
