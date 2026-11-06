@@ -26,7 +26,8 @@
             ],
             "styles": [
               "src/styles.css"
-            ]
+            ],
+            "baseHref": "/ng/"
           },
           "configurations": {
             "production": {

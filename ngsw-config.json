@@ -1,0 +1,45 @@
+{
+  "index": "/index.html",
+  "assetGroups": [
+    {
+      "name": "app",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/favicon.ico",
+          "/index.html",
+          "/manifest.webmanifest",
+          "/*.css",
+          "/*.js"
+        ]
+      }
+    },
+    {
+      "name": "assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/assets/**",
+          "/*.(svg|png|jpg|jpeg|webp|woff2|woff)"
+        ]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "autopark-api-cache",
+      "urls": [
+        "https://pravosleva.pro**",
+        "https://pravosleva.pro**"
+      ],
+      "cacheConfig": {
+        "maxSize": 100,
+        "maxAge": "1d",
+        "timeout": "3s",
+        "strategy": "freshness"
+      }
+    }
+  ]
+}
