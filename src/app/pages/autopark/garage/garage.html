@@ -28,22 +28,39 @@
 
       <div class="space-y-3">
         @for (car of uiProjects(); track car.id) {
-        <!-- Карточка автомобиля с нативным ленивым роутингом -->
+        <!-- Карточка автомобиля с адаптивным переносом процессов вниз -->
         <div [routerLink]="['/autopark', tg_chat_id(), car.id]"
-          class="group p-5 bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-neutral-700 rounded-2xl shadow-md transition-all active:scale-[0.99] cursor-pointer flex justify-between items-center">
-          <div class="space-y-1">
-            <h4 class="text-base font-bold text-neutral-200 group-hover:text-blue-400 transition-colors">
-              {{ car.name }}
-            </h4>
-            <p class="text-xs text-neutral-400 line-clamp-1 font-mono">{{ car.description || 'Нет описания' }}</p>
+          class="group p-5 bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-neutral-700 rounded-2xl shadow-md transition-all active:scale-[0.99] cursor-pointer flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
+          <!-- Основные метаданные (название, описание, процессы на мобилках) -->
+          <div class="space-y-2 flex-1 w-full">
+            <div class="space-y-1">
+              <h4 class="text-base font-bold text-neutral-200 group-hover:text-blue-400 transition-colors">
+                {{ car.name }}
+              </h4>
+              <p class="text-xs text-neutral-400 line-clamp-1 font-mono">{{ car.description || 'Нет описания' }}</p>
+            </div>
+
+            <!-- Блок процессов: отображается внизу на мобилках, скрывается на sm: -->
+            <div class="sm:hidden pt-1">
+              <span
+                class="text-[10px] bg-neutral-950 border border-neutral-800 px-2 py-1 rounded-md text-neutral-400 font-mono">
+                Процессов: {{ car.itemsCount }}
+              </span>
+            </div>
           </div>
-          <div class="flex items-center gap-3">
+
+          <!-- Правый блок: отображается только начиная с sm:, на мобилках скрыт/перестроен -->
+          <div
+            class="flex items-center gap-3 w-full sm:w-auto justify-end border-t border-neutral-800/50 sm:border-none pt-3 sm:pt-0">
+            <!-- Блок процессов для десктопов -->
             <span
-              class="text-xs bg-neutral-950 border border-neutral-800 px-2 py-1 rounded-md text-neutral-400 font-mono">
+              class="hidden sm:inline-block text-xs bg-neutral-950 border border-neutral-800 px-2 py-1 rounded-md text-neutral-400 font-mono">
               Процессов: {{ car.itemsCount }}
             </span>
-            <span class="text-neutral-600 group-hover:text-neutral-400 transition-colors">→</span>
+            <span class="text-neutral-600 group-hover:text-neutral-400 transition-colors font-bold font-mono">→</span>
           </div>
+
         </div>
         } @empty {
         @if (!isLoading()) {
@@ -57,16 +74,30 @@
       </div>
     </div>
 
-    <!-- Контейнер формы создания авто -->
-    <div id="create-car-anchor" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
-      <h3 class="text-sm font-bold tracking-tight text-neutral-200 font-mono uppercase">
-        🛠️ Запустить новый проект авто
-      </h3>
+    <!-- Контейнер формы создания авто с кнопкой развертывания -->
+    <div id="create-car-anchor"
+      class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4 transition-all duration-300">
 
-      <!-- 🔥 ИСПРАВЛЕНО: Сетка теперь адаптивная — 1 колонка на мобильных, 2 колонки начиная с sm: -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- Интерактивная шапка-переключатель -->
+      <div (click)="isFormExpanded.set(!isFormExpanded())"
+        class="flex justify-between items-center cursor-pointer select-none group">
+        <h3 class="text-sm font-bold tracking-tight text-neutral-200 font-mono uppercase flex items-center gap-2">
+          <span>Новое авто</span>
+        </h3>
 
-        <!-- Селектор Бренда (Занимает 1 колонку) -->
+        <!-- Динамический индикатор раскрытия -->
+        <span
+          class="text-xs font-mono text-neutral-500 group-hover:text-blue-400 transition-colors flex items-center gap-1">
+          <span>{{ isFormExpanded() ? 'Свернуть' : 'Развернуть' }}</span>
+          <span class="inline-block transition-transform duration-200" [class.rotate-180]="isFormExpanded()">▼</span>
+        </span>
+      </div>
+
+      <!-- 🔥 РАСКРЫВАЮЩИЙСЯ КОНТУР ФОРМЫ НА СИГНАЛАХ -->
+      @if (isFormExpanded()) {
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 animate-fade-in">
+
+        <!-- Селектор Бренда -->
         <div class="flex flex-col">
           <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Марка:</label>
           <select [ngModel]="selectedBrand()" (ngModelChange)="onBrandChange($event)"
@@ -76,7 +107,7 @@
           </select>
         </div>
 
-        <!-- Селектор Модели (Занимает 1 колонку) -->
+        <!-- Селектор Модели -->
         <div class="flex flex-col">
           <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Модель:</label>
           <select [ngModel]="selectedModel()" (ngModelChange)="onModelChange($event)" [disabled]="!selectedBrand()"
@@ -86,7 +117,7 @@
           </select>
         </div>
 
-        <!-- Блок выбора поколения в виде плитки (🔥 ИСПРАВЛЕНО: Растягивается на 2 колонки на экранах от sm:) -->
+        <!-- Блок выбора поколения в виде плитки -->
         <div class="flex flex-col sm:col-span-2 pt-2">
           <label class="text-[10px] font-mono uppercase text-neutral-400 mb-2 tracking-wider">
             Выберите поколение автомобиля:
@@ -98,13 +129,12 @@
             🔒 Доступно после выбора марки и модели
           </div>
           } @else {
-          <!-- Внутренний грид плиток: 2 в ряд на мобилках, 3 в ряд от sm: -->
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
             @for (g of availableGenerations(); track g.id) {
             <div (click)="selectedGenerationId.set(g.id)" [ngClass]="{
-                    'border-blue-500 bg-blue-950/20 ring-1 ring-blue-500/30': selectedGenerationId() === g.id,
-                    'border-neutral-800 bg-neutral-950 hover:border-neutral-700 hover:bg-neutral-900/50': selectedGenerationId() !== g.id
-                  }"
+                      'border-blue-500 bg-blue-950/20 ring-1 ring-blue-500/30': selectedGenerationId() === g.id,
+                      'border-neutral-800 bg-neutral-950 hover:border-neutral-700 hover:bg-neutral-900/50': selectedGenerationId() !== g.id
+                    }"
               class="group p-3 border rounded-xl flex flex-col items-center justify-between text-center transition-all cursor-pointer select-none active:scale-[0.98]">
               <div
                 class="w-full h-16 flex items-center justify-center overflow-hidden rounded-lg bg-neutral-900/80 mb-2 border border-neutral-800/40 relative">
@@ -131,7 +161,7 @@
           }
         </div>
 
-        <!-- Селектор Трансмиссии (Занимает 1 колонку) -->
+        <!-- Селектор Трансмиссии -->
         <div class="flex flex-col">
           <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Коробка:</label>
           <select [ngModel]="selectedTransmission()" (ngModelChange)="selectedTransmission.set($event)"
@@ -142,7 +172,7 @@
           </select>
         </div>
 
-        <!-- Селектор Года (Занимает 1 колонку) -->
+        <!-- Селектор Года -->
         <div class="flex flex-col">
           <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Год выпуска:</label>
           <select [ngModel]="selectedYear()" (ngModelChange)="selectedYear.set($event)"
@@ -153,7 +183,7 @@
           </select>
         </div>
 
-        <!-- Поле ввода пользовательского имени (🔥 ИСПРАВЛЕНО: Растягивается на 2 колонки от sm:) -->
+        <!-- Поле ввода пользовательского имени -->
         <div class="flex flex-col sm:col-span-2 pt-2">
           <label class="text-[10px] font-mono uppercase text-neutral-400 mb-1">Пользовательское имя (Описание
             процесса):</label>
@@ -162,7 +192,7 @@
             class="bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-sm focus:outline-none focus:border-blue-500 font-mono text-white" />
         </div>
 
-        <!-- Кнопка отправки POST-запроса (🔥 ИСПРАВЛЕНО: Растягивается на 2 колонки от sm:) -->
+        <!-- Кнопка отправки POST-запроса -->
         <div class="sm:col-span-2 pt-2">
           <button (click)="createCarProcess()" [disabled]="!isFormValid() || isSubmitting()"
             class="w-full p-3 bg-green-600 hover:bg-green-500 disabled:bg-neutral-800 disabled:text-neutral-500 font-bold rounded-xl text-xs uppercase tracking-wider font-mono transition-all disabled:cursor-not-allowed">
@@ -172,6 +202,7 @@
         </div>
 
       </div>
+      }
     </div>
 
   </div>

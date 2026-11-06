@@ -107,6 +107,8 @@ export class GarageComponent {
   public readonly tg_chat_id = input.required<string>();
   public readonly isLoading = signal<boolean>(false);
 
+  public readonly isFormExpanded = signal<boolean>(false);
+
   /**
    * 3. Умный реактивный мост с поддержкой глобального кэша и триггера обновления
    * Синхронизирует данные при изменении URL или принудительном инкременте версии формы
