@@ -1,5 +1,4 @@
-// src/app/pages/auth/login/login.component.ts (Часть 1 из 3)
-import { Component, signal, computed, inject } from '@angular/core';
+import { Component, signal, computed, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -31,7 +30,7 @@ interface LoginResponse {
 
         <div class="space-y-4">
 
-          <!-- 🚨 НОВОЕ: Рубеж проверки наличия Chat ID -->
+          <!-- Рубеж проверки наличия Chat ID -->
           @if (isChatIdMissing()) {
             <div class="p-4 bg-amber-950/40 border border-amber-900/50 rounded-xl text-xs text-amber-400 font-mono leading-relaxed space-y-2">
               <p class="font-bold uppercase text-amber-300">⚠️ Критический сбой контекста</p>
@@ -39,45 +38,51 @@ interface LoginResponse {
             </div>
           }
 
-          <div class="flex flex-col">
-            <label for="pin" class="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2 font-mono">
-              Введите 4-значный ПИН-код:
-            </label>
-            <!-- 🔒 ДОБАВЛЕНО: Дизейблим поле, если нет chat_id -->
-            <input
-              id="pin"
-              type="password"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              maxlength="4"
-              placeholder="••••"
-              [ngModel]="pinCode()"
-              (ngModelChange)="onPinChange($event)"
-              [disabled]="isLoading() || isChatIdMissing()"
-              class="w-full text-center text-2xl tracking-widest p-3 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:border-blue-500 font-mono transition-colors disabled:opacity-40 text-white"
-            />
-          </div>
-
-          <!-- Вывод системных ошибок рантайма -->
-          @if (errorMessage()) {
-            <div class="p-3 bg-red-950/50 border border-red-900/50 rounded-xl text-xs text-red-400 font-mono flex items-center gap-2">
-              <span>⚠️</span> <span>{{ errorMessage() }}</span>
+          @if (isCheckingSession()) {
+            <!-- Спиннер автоматического входа по JWT куке -->
+            <div class="p-4 bg-blue-950/30 border border-blue-900/40 rounded-xl text-center space-y-2 animate-pulse">
+              <div class="animate-spin inline-block w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              <p class="text-xs text-blue-400 font-mono">📡 Восстановление сессии по JWT...</p>
             </div>
-          }
+          } @else {
+            <div class="flex flex-col">
+              <label for="pin" class="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2 font-mono">
+                Введите 4-значный ПИН-код:
+              </label>
+              <input
+                id="pin"
+                type="password"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="4"
+                placeholder="••••"
+                [ngModel]="pinCode()"
+                (ngModelChange)="onPinChange($event)"
+                [disabled]="isLoading() || isChatIdMissing()"
+                class="w-full text-center text-2xl tracking-widest p-3 bg-neutral-950 border border-neutral-800 rounded-xl focus:outline-none focus:border-blue-500 font-mono transition-colors disabled:opacity-40 text-white"
+              />
+            </div>
 
-          <!-- Кнопка отправки POST-запроса -->
-          <!-- 🔒 ДОБАВЛЕНО: Дизейблим кнопку, если нет chat_id -->
-          <button
-            (click)="submitPassword()"
-            [disabled]="!isFormValid() || isLoading() || isChatIdMissing()"
-            class="w-full p-3 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 font-medium rounded-xl text-sm tracking-wide font-mono transition-colors active:scale-[0.98] disabled:active:scale-100 cursor-not-allowed disabled:cursor-not-allowed flex justify-center items-center"
-          >
-            @if (isLoading()) {
-              <span class="animate-pulse">📡 Проверка рантайма...</span>
-            } @else {
-              <span>Запустить сессию →</span>
+            <!-- Вывод системных ошибок рантайма -->
+            @if (errorMessage()) {
+              <div class="p-3 bg-red-950/50 border border-red-900/50 rounded-xl text-xs text-red-400 font-mono flex items-center gap-2">
+                <span>⚠️</span> <span>{{ errorMessage() }}</span>
+              </div>
             }
-          </button>
+
+            <!-- Кнопка отправки POST-запроса -->
+            <button
+              (click)="submitPassword()"
+              [disabled]="!isFormValid() || isLoading() || isChatIdMissing()"
+              class="w-full p-3 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 font-medium rounded-xl text-sm tracking-wide font-mono transition-colors active:scale-[0.98] disabled:active:scale-100 cursor-not-allowed disabled:cursor-not-allowed flex justify-center items-center"
+            >
+              @if (isLoading()) {
+                <span class="animate-pulse">📡 Проверка ПИН-кода...</span>
+              } @else {
+                <span>Запустить сессию →</span>
+              }
+            </button>
+          }
         </div>
 
         <p class="text-[10px] font-mono text-neutral-500 text-center mt-6 leading-relaxed">
@@ -88,64 +93,79 @@ interface LoginResponse {
   `,
   styles: []
 })
-export class LoginComponent {
-  // 1. Внедряем системные зависимости фреймворка через движок DI
+export class LoginComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  // 2. Локальные примитивы состояния (Signals)
   public readonly pinCode = signal<string>('');
   public readonly isLoading = signal<boolean>(false);
+  public readonly isCheckingSession = signal<boolean>(false); // 🚨 НОВОЕ: состояние авто-проверки JWT
   public readonly errorMessage = signal<string | null>(null);
 
-  /**
-   * 3. Извлекаем chat_id из query-параметров URL рантаймом.
-   * snapshot позволяет прочитать значение синхронно при монтировании класса.
-   */
   public readonly targetChatId = computed(() => {
     return this.route.snapshot.queryParamMap.get('chat_id') || '';
   });
 
-  /**
-   * 4. Вычисляем целевой URL для возврата после успешного входа.
-   * Если параметр "from" пустой, фолбеком будет корень приватной панели '/autopark'.
-   */
   public readonly fallbackRedirectUrl = computed(() => {
     return this.route.snapshot.queryParamMap.get('from') || '/autopark';
   });
 
-  /**
-   * 5. Обновленный граф вычислений валидности формы (DAG).
-   * Блокирует отправку, если chat_id пустой ИЛИ пин-код не равен 4 цифрам.
-   */
   public readonly isFormValid = computed(() => {
     const pin = this.pinCode().trim();
     const hasChatId = this.targetChatId().trim().length > 0;
-
     return hasChatId && pin.length === 4 && !Number.isNaN(Number(pin));
   });
 
-  /**
-   * Дополнительный computed-сигнал для проверки отсутствия ID
-   */
   public readonly isChatIdMissing = computed(() => {
     return this.targetChatId().trim().length === 0;
   });
 
   /**
-   * 6. Слушатель изменения поля ввода для хирургического сброса ошибок
+   * 🚨 НОВОЕ: Хук инициализации проверяет JWT до того, как пользователь начнет ввод
    */
+  ngOnInit(): void {
+    this.checkExistingSession();
+  }
+
+  private checkExistingSession(): void {
+    const currentChatId = this.targetChatId().trim();
+    if (!currentChatId || Number.isNaN(Number(currentChatId))) return;
+
+    this.isCheckingSession.set(true);
+    const checkJwtUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/check-jwt';
+
+    console.log(`📡 [Login Auto-Auth]: Обнаружен chat_id=${currentChatId}. Проверка фонового JWT-токена...`);
+
+    this.http.post<LoginResponse>(
+      checkJwtUrl,
+      { tested_chat_id: Number(currentChatId) },
+      { withCredentials: true }
+    ).pipe(
+      catchError((err) => {
+        console.log('ℹ️ [Login Auto-Auth]: Активной или валидной сессии в куках нет (Требуется ПИН).', err.status);
+        this.isCheckingSession.set(false);
+        return of({ ok: false });
+      })
+    ).subscribe({
+      next: (res) => {
+        if (res && res.ok === true) {
+          console.log('🟢 [Login Auto-Auth]: Токен подтвержден! Перенаправление без ввода ПИН-кода...');
+          this.navigateToTarget();
+        } else {
+          this.isCheckingSession.set(false);
+        }
+      }
+    });
+  }
+
   public onPinChange(newPin: string): void {
     this.pinCode.set(newPin);
     if (this.errorMessage()) {
-      this.errorMessage.set(null); // Точечно очищаем ошибку при вводе
+      this.errorMessage.set(null);
     }
   }
 
-  /**
-   * 7. Отправка POST-запроса на валидацию ПИН-кода с умным редиректом
-   */
   public submitPassword(): void {
     if (!this.isFormValid() || this.isLoading() || this.isChatIdMissing()) return;
 
@@ -153,70 +173,61 @@ export class LoginComponent {
     this.errorMessage.set(null);
 
     const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/check-password';
-    const currentChatId = this.targetChatId().trim();
-
     const body = {
-      chat_id: currentChatId,
+      chat_id: this.targetChatId().trim(),
       password: this.pinCode()
     };
 
-    console.log('📡 [Login UI]: Запуск POST-верификации ПИН-кода...');
-
-    this.http.post<LoginResponse>(
-      apiUrl,
-      body,
-      { withCredentials: true }
-    ).pipe(
+    this.http.post<LoginResponse>(apiUrl, body, { withCredentials: true }).pipe(
       catchError((err) => {
-        console.error('🚨 [Login Net Error]: Ошибка соединения с сервером:', err);
+        console.error('🚨 [Login Net Error]:', err);
         this.errorMessage.set('Не удалось связаться с сервером авторизации.');
+        this.isLoading.set(false);
         return of({ ok: false });
       })
     ).subscribe({
       next: (res) => {
-        this.isLoading.set(false);
-
-                if (res && res.ok === true) {
-          console.log('🟢 [Login Success]: Сессия на бэкенде успешно подтверждена.');
-
-          const currentChatId = this.targetChatId().trim();
-          const rawRedirectUrl = this.fallbackRedirectUrl();
-          let segments: string[] = [];
-
-          // 1. Формируем массив сегментов для перехода
-          if (rawRedirectUrl === '/autopark' || rawRedirectUrl === '/' || rawRedirectUrl === '') {
-            segments = ['autopark', currentChatId];
-          } else {
-            segments = rawRedirectUrl.split('/').filter(p => p.trim().length > 0);
-          }
-
-          // Трассируем подготовленный маршрут перед вызовом рантайма
-          console.log('🔬 [Router Debug - Target Segments]:', segments);
-          console.log('🔬 [Router Debug - BaseHref Context]:', document.querySelector('base')?.getAttribute('href'));
-          console.log('🔬 [Router Debug - Current URL in Browser]:', window.location.href);
-
-          // 2. Запускаем навигацию и ловим Promise
-          this.router.navigate(segments)
-            .then((navigationResult) => {
-              if (navigationResult) {
-                console.log('🚀 [Router Debug]: Переход выполнен успешно! Компонент должен быть на экране.');
-              } else {
-                console.error('❌ [Router Debug]: Рантайн Angular ОТКЛОНИЛ переход (Вернул false).');
-                console.error('👉 Возможные причины: сработал CanActivate гвард на целевой странице, маршрут заблокирован или отменен другим переходом.');
-                this.errorMessage.set('Система навигации отклонила переход. Проверьте статус авторизации в гварде.');
-              }
-            })
-            .catch((routerError) => {
-              console.error('🚨 [Router Debug - CRITICAL ERROR]: Во время перехода произошло падение:', routerError);
-              this.errorMessage.set(`Критический сбой роутера: ${routerError.message || routerError}`);
-            });
-
+        if (res && res.ok === true) {
+          this.navigateToTarget();
         } else {
           this.isLoading.set(false);
           this.errorMessage.set((res as LoginResponse)?.message || 'Неверный 4-значный ПИН-код.');
         }
-
       }
     });
+  }
+
+  /**
+   * 🛠️ ВЫНЕСЕНО В МЕТОД: Изолированная логика разбора путей и навигации
+   */
+  private navigateToTarget(): void {
+    const currentChatId = this.targetChatId().trim();
+    const rawRedirectUrl = this.fallbackRedirectUrl();
+    let segments: string[] = [];
+
+    // Безопасный парсинг URI-компонентов (декодирует %2F в слэши обратно)
+    const decodedUrl = decodeURIComponent(rawRedirectUrl);
+
+    if (decodedUrl === '/autopark' || decodedUrl === '/' || decodedUrl === '') {
+      segments = ['autopark', currentChatId];
+    } else {
+      segments = decodedUrl.split('/').filter(p => p.trim().length > 0);
+    }
+
+    console.log('🚀 [Login Navigation]: Выполнение перехода на сегменты:', segments);
+
+    this.router.navigate(segments)
+      .then((navigated) => {
+        if (!navigated) {
+          this.isCheckingSession.set(false);
+          this.isLoading.set(false);
+          this.errorMessage.set('Рантайн Angular отклонил переход. Проверьте конфигурацию путей.');
+        }
+      })
+      .catch((err) => {
+        this.isCheckingSession.set(false);
+        this.isLoading.set(false);
+        this.errorMessage.set(`Критический сбой роутера: ${err.message || err}`);
+      });
   }
 }
