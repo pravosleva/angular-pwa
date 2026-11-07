@@ -13,9 +13,11 @@ export const appRoutes: Routes = [
   // 2. Плоские приватные маршруты (Защищены напрямую)
   {
     path: 'autopark',
-    loadComponent: () => import('./pages/autopark/dashboard/dashboard').then(m => m.DashboardComponent),
-    canActivate: [authGuard],
-    title: 'AutoPark | Главная'
+    // loadComponent: () => import('./pages/autopark/dashboard/dashboard').then(m => m.DashboardComponent),
+    // canActivate: [authGuard],
+    // title: 'AutoPark | Главная'
+    pathMatch: 'full',
+    redirectTo: 'auth/login'
   },
   {
     path: 'autopark/:tg_chat_id',

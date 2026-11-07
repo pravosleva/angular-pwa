@@ -1,17 +1,13 @@
 import { Component, signal, computed, inject, input, OnInit, OnDestroy, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Meta, Title } from '@angular/platform-browser'; // Системный SEO-слой Angular
+import { Meta, Title } from '@angular/platform-browser';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { of, combineLatest } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, switchMap, tap, startWith } from 'rxjs/operators';
-// import { CarItem } from '../garage/garage';
 import { UICarProcess } from '../car-details/car-details';
 import { RouterLink } from '@angular/router';
 
-/**
- * Строгий интерфейс ответа от публичного API отчетов get-report
- */
 type TProjectDataResponse = {
   ok: boolean;
   name?: string;
@@ -42,42 +38,57 @@ export class ReportComponent implements OnInit, OnDestroy {
 
   /**
    * 1. Входящие сигнальные инпуты от роутера.
-   * Автоматически маппят параметры открытого пути: /autopark/:tg_chat_id/:project_id/report
    */
   public readonly tg_chat_id = input.required<string>();
   public readonly project_id = input.required<string>();
 
+  /**
+   * 🚨 НОВОЕ: Перехватываем query-параметр ?mileage из URL.
+   * Если привязана функция withComponentInputBinding(), Angular замаппит его сюда автоматически.
+   */
+  public readonly mileage = input<string | null>(null);
+
   // 2. Локальные сигналы индикации состояния
   public readonly isLoading = signal<boolean>(false);
 
-  // 🔥 Реактивный сигнал пробега, изолированный под текущий project_id
+  // Реактивный сигнал пробега, изолированный под текущий project_id
   public readonly currentVehicleMileage = signal<number>(0);
 
   constructor() {
     /**
-     * 🔥 НОВОЕ: Автоматическое восстановление пробега для конкретной машины.
-     * Запускается при инициализации project_id() и считывает изолированный ключ.
+     * 🔥 ОБНОВЛЕНО: Умный расчет пробега с приоритетом URL.
+     * Запускается при изменении project_id() или query-параметра mileage().
      */
     effect(() => {
       const pid = this.project_id();
+      const urlMileage = this.mileage();
+
       if (pid) {
+        // 1. Проверяем, пришел ли валидный пробег из URL query-параметров
+        if (urlMileage && !Number.isNaN(Number(urlMileage))) {
+          console.log(`ℹ️ [Report Mileage]: Приоритет URL. Используем пробег из query: ${urlMileage} км. LocalStorage игнорируется.`);
+          this.currentVehicleMileage.set(Number(urlMileage));
+          return; // Завершаем выполнение, не трогая и не перезаписывая localStorage
+        }
+
+        // 2. Если в URL ничего нет, берем значение из localStorage
         const localData = localStorage.getItem(`autopark_mileage_${pid}`);
+
         // Фолбек на 10000, если машина открывается впервые без сохраненного пробега
         this.currentVehicleMileage.set(localData ? Number(localData) : 10000);
+        console.log(`ℹ️ [Report Mileage]: Используем пробег из localStorage/fallback: ${this.currentVehicleMileage()} км.`);
       }
     }, { allowSignalWrites: true });
   }
 
   /**
    * 3. Открытый реактивный мост (toSignal + toObservable)
-   * 🔥 ОБНОВЛЕНО: combineLatest теперь слушает и сигнал пробега,
-   * автоматически перезапуская POST-запрос при обновлении localStorage!
    */
   private readonly apiResponse = toSignal<TProjectDataResponse>(
     combineLatest([
       toObservable(this.tg_chat_id),
       toObservable(this.project_id),
-      toObservable(this.currentVehicleMileage) // Отслеживаем живой пробег
+      toObservable(this.currentVehicleMileage)
     ]).pipe(
       debounceTime(50),
       distinctUntilChanged((prev, curr) =>
@@ -91,7 +102,6 @@ export class ReportComponent implements OnInit, OnDestroy {
 
         const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/project/get-report';
 
-        // 🔥 Передаем актуальный пробег из localStorage прямо в payload бэкенда!
         const body = {
           chat_id: Number(chatId),
           project_id: Number(projectId),
@@ -113,11 +123,7 @@ export class ReportComponent implements OnInit, OnDestroy {
     { requireSync: true }
   );
 
-  /**
-   * 4. Инициализация SEO-слоя на старте компонента (Аналог Next.js Head)
-   */
   public ngOnInit(): void {
-    // ЯВНО РАЗРЕШАЕМ индексацию роботами технического отчета
     this.titleService.setTitle('AutoPark | Открытый технический отчет');
     this.meta.addTags([
       { name: 'robots', content: 'index, follow' },
@@ -127,22 +133,14 @@ export class ReportComponent implements OnInit, OnDestroy {
     ]);
   }
 
-  /**
-   * 5. Computed-выражение для извлечения конкретного отчета.
-   */
   public readonly currentReport = computed<TProjectDataResponse | null>(() => {
     return this.apiResponse() || null;
   });
 
-  /**
-   * 6. Computed-выражение для расчета прогресса ТО.
-   * 🔥 ОБНОВЛЕНО: Вычисляет процент износа расходников на основе ЖИВОГО сигнала пробега
-   */
   public readonly processes = computed<UICarProcess[]>(() => {
     const car = this.currentReport();
     if (!car || !car.report) return [];
 
-    // Читаем живой пробег из сигнала, восстановленный из localStorage
     const currentVehicleMileage = this.currentVehicleMileage();
 
     return car.report.map((item: any) => {
@@ -167,11 +165,6 @@ export class ReportComponent implements OnInit, OnDestroy {
     });
   });
 
-  /**
-   * 7. Очистка метатегов при уничтожении компонента.
-   * КРИТИЧЕСКИ ВАЖНО: Удаляем публичные метатеги из DOM, чтобы поисковые
-   * роботы не проиндексировали приватный контур приложения при переходах!
-   */
   public ngOnDestroy(): void {
     console.log('🧹 [Public Report SEO]: Очистка метатегов и закрытие поискового контура.');
     this.meta.removeTag("name='robots'");
