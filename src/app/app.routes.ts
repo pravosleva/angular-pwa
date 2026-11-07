@@ -38,6 +38,11 @@ export const appRoutes: Routes = [
     title: 'AutoPark | Публичный отчет авто'
   },
 
+  {
+    path: 'auth/logout',
+    loadComponent: () => import('./pages/auth/logout/logout').then(m => m.LogoutComponent)
+  },
+
   // Фолбек: если роут не найден, перенаправляем в корень приватной панели
   {
     path: '**',

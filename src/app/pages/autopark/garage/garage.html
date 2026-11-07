@@ -7,7 +7,8 @@
         <h2 class="text-xl font-bold text-neutral-100 tracking-tight">Виртуальный гараж</h2>
         <p class="text-xs text-neutral-400 mt-1 font-mono">Владелец (TG ID): #{{ tg_chat_id() }}</p>
       </div>
-      <a routerLink="/auth/login" class="text-xs font-mono text-neutral-500 hover:text-red-400 transition-colors">
+      <a routerLink="/auth/logout" [queryParams]="{ success: '/auth/login', chat_id: tg_chat_id() }"
+        class="text-xs font-mono text-neutral-500 hover:text-red-400 transition-colors">
         Выйти
       </a>
     </div>
