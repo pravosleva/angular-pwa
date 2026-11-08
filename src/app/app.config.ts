@@ -2,7 +2,7 @@ import { ApplicationConfig, provideZonelessChangeDetection } from '@angular/core
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideServiceWorker } from '@angular/service-worker';
-import { APP_BASE_HREF } from '@angular/common'; // Импортируем токен базового пути
+// import { APP_BASE_HREF } from '@angular/common'; // Импортируем токен базового пути
 import { isDevMode } from '@angular/core';
 import { appRoutes } from './app.routes';
 
@@ -12,7 +12,11 @@ export const appConfig: ApplicationConfig = {
     provideZonelessChangeDetection(),
 
     provideHttpClient(),
-    provideRouter(appRoutes, withComponentInputBinding()),
+    provideRouter(
+      appRoutes,
+      withComponentInputBinding(),
+      // withDebugTracing()
+    ),
 
     // 🔥 ГЛОБАЛЬНЫЙ КРИТИЧЕСКИЙ ФИКС: Устанавливаем базовый href рантайма.
     // Теперь любая команда router.navigate(['/autopark']) автоматически

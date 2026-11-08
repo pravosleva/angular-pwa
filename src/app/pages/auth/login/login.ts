@@ -5,6 +5,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { AuthService } from '../../../services/auth.service';
 
 interface LoginResponse {
   ok: boolean;
@@ -95,6 +96,7 @@ interface LoginResponse {
 })
 export class LoginComponent implements OnInit {
   private readonly http = inject(HttpClient);
+  private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -133,30 +135,43 @@ export class LoginComponent implements OnInit {
     if (!currentChatId || Number.isNaN(Number(currentChatId))) return;
 
     this.isCheckingSession.set(true);
-    const checkJwtUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/check-jwt';
 
-    console.log(`📡 [Login Auto-Auth]: Обнаружен chat_id=${currentChatId}. Проверка фонового JWT-токена...`);
-
-    this.http.post<LoginResponse>(
-      checkJwtUrl,
-      { tested_chat_id: Number(currentChatId) },
-      { withCredentials: true }
-    ).pipe(
-      catchError((err) => {
-        console.log('ℹ️ [Login Auto-Auth]: Активной или валидной сессии в куках нет (Требуется ПИН).', err.status);
-        this.isCheckingSession.set(false);
-        return of({ ok: false });
-      })
-    ).subscribe({
+    this.authService.checkJwt(Number(currentChatId)).subscribe({
       next: (res) => {
         if (res && res.ok === true) {
-          console.log('🟢 [Login Auto-Auth]: Токен подтвержден! Перенаправление без ввода ПИН-кода...');
           this.navigateToTarget();
         } else {
           this.isCheckingSession.set(false);
         }
       }
     });
+
+    // -- v0
+    // const checkJwtUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/check-jwt';
+
+    // console.log(`📡 [Login Auto-Auth]: Обнаружен chat_id=${currentChatId}. Проверка фонового JWT-токена...`);
+
+    // this.http.post<LoginResponse>(
+    //   checkJwtUrl,
+    //   { tested_chat_id: Number(currentChatId) },
+    //   { withCredentials: true }
+    // ).pipe(
+    //   catchError((err) => {
+    //     console.log('ℹ️ [Login Auto-Auth]: Активной или валидной сессии в куках нет (Требуется ПИН).', err.status);
+    //     this.isCheckingSession.set(false);
+    //     return of({ ok: false });
+    //   })
+    // ).subscribe({
+    //   next: (res) => {
+    //     if (res && res.ok === true) {
+    //       console.log('🟢 [Login Auto-Auth]: Токен подтвержден! Перенаправление без ввода ПИН-кода...');
+    //       this.navigateToTarget();
+    //     } else {
+    //       this.isCheckingSession.set(false);
+    //     }
+    //   }
+    // });
+    // --
   }
 
   public onPinChange(newPin: string): void {

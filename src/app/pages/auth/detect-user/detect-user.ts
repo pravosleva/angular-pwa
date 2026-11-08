@@ -74,21 +74,20 @@ export class DetectUserComponent implements OnInit {
   }
 
   public proceedToProject(): void {
-    if (!this.isFormValid()) return;
+  if (!this.isFormValid()) return;
 
-    const cleanedId = this.chatIdInput().trim();
+  const cleanedId = this.chatIdInput().trim();
+  localStorage.setItem('last_detected_chat_id', cleanedId);
 
-    // Сохраняем ID для будущих сессий
-    localStorage.setItem('last_detected_chat_id', cleanedId);
+  // Извлекаем "from" (например: "/event"), убираем слэши и делим на сегменты
+  const rawTarget = decodeURIComponent(this.targetProjectFrom());
+  const cleanTarget = rawTarget.split('?')[0]; // берем чистый путь до знака '?'
 
-    // Парсим базовый путь (например, "/autopark" или "/event")
-    const rawTarget = decodeURIComponent(this.targetProjectFrom());
-    const cleanTarget = rawTarget.split('?')[0]; // отсекаем старые query-параметры если были
+  // 🟢 Формируем идеальный массив сегментов: ['event', '432590698']
+  const segments = cleanTarget.split('/').filter(p => p.trim().length > 0);
+  segments.push(cleanedId);
 
-    // Собираем новый путь: "from/:chat_id" -> ['autopark', '432590698']
-    const segments = [...cleanTarget.split('/'), cleanedId].filter(p => p.trim().length > 0);
-
-    console.log(`🚀 [Detect User]: Перенаправление на проектную ветку:`, segments);
-    this.router.navigate(segments);
-  }
+  console.log(`🚀 [Detect User]: Успешный переход на сегменты:`, segments);
+  this.router.navigate(segments);
+}
 }

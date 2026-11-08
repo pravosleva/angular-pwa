@@ -1,0 +1,160 @@
+<div class="min-h-screen bg-neutral-950 font-sans text-neutral-100 p-4 md:p-8">
+  <div class="max-w-xl mx-auto space-y-6">
+
+    <!-- Навигация -->
+    <div class="flex items-center justify-between">
+      <a [routerLink]="['/event', tg_chat_id()]"
+        class="text-xs font-mono text-neutral-400 hover:text-purple-400 transition-colors">← К проектам</a>
+      <span class="text-xs font-mono text-neutral-500">ID: #{{ tg_chat_id() }}</span>
+    </div>
+
+    <!-- Пульт Календаря -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 md:p-6 shadow-xl space-y-4">
+
+      <!-- Панель управления месяцем -->
+      <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
+        <button (click)="prevMonth()"
+          class="p-2 bg-neutral-950 border border-neutral-800 hover:border-neutral-700 rounded-xl font-mono text-sm">◀</button>
+        <h3 class="text-base font-bold capitalize font-mono text-purple-400">{{ monthName() }}</h3>
+        <button (click)="nextMonth()"
+          class="p-2 bg-neutral-950 border border-neutral-800 hover:border-neutral-700 rounded-xl font-mono text-sm">▶</button>
+      </div>
+
+      <!-- 🚨 КРУПНАЯ ИНТЕРАКТИВНАЯ КНОПКА АНАЛИТИКИ -->
+      <button [routerLink]="['/event', tg_chat_id(), project_id(), 'analytics']"
+        class="w-full p-3 bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 hover:border-purple-900/60 rounded-xl flex items-center justify-between transition-all group active:scale-[0.99]">
+        <div class="flex items-center gap-3">
+          <span
+            class="text-lg bg-purple-950/40 border border-purple-900/40 w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+            📊
+          </span>
+          <div class="text-left">
+            <div class="text-xs font-bold text-neutral-200 group-hover:text-purple-400 transition-colors">Аналитика и
+              статистика циклов</div>
+            <div class="text-[10px] font-mono text-neutral-500">Графики стабильности, расчет средних интервалов</div>
+          </div>
+        </div>
+        <span
+          class="text-xs font-mono text-neutral-600 group-hover:text-purple-400 transition-colors font-bold pr-1">→</span>
+      </button>
+
+      <!-- Сетка дней недели -->
+      <div class="grid grid-cols-7 gap-1 text-center text-xs font-bold text-neutral-500 font-mono">
+        <div>Пн</div>
+        <div>Вт</div>
+        <div>Ср</div>
+        <div>Чт</div>
+        <div>Пт</div>
+        <div>Сб</div>
+        <div>Вс</div>
+      </div>
+
+      <!-- КАСТОМНАЯ СЕТКА КАЛЕНДАРЯ CSS GRID -->
+      <div class="grid grid-cols-7 gap-1.5">
+        @for (day of calendarWeeks(); track day.dateStr) {
+        <div [routerLink]="day.isCurrentMonth ? ['/event', tg_chat_id(), project_id(), 'day', day.dateStr] : null"
+          [ngClass]="{
+           'bg-neutral-950 border-neutral-900 opacity-20 pointer-events-none': !day.isCurrentMonth,
+           'bg-neutral-900 hover:bg-neutral-850 border-neutral-800 hover:border-neutral-700 cursor-pointer': day.isCurrentMonth
+         }"
+          class="border rounded-xl p-1.5 min-h-[72px] flex flex-col justify-between relative transition-all active:scale-95">
+
+          <!-- Верхняя строка: Номер дня месяца и стек счетчиков циклов -->
+          <div class="flex items-start justify-between w-full gap-1">
+            <span class="text-xs font-mono font-bold"
+              [class.text-purple-400]="day.cycleCounters && day.cycleCounters.length > 0">
+              {{ day.dayNumber }}
+            </span>
+
+            <!-- Стек параллельных разноцветных счетчиков в углу ячейки -->
+            @if (day.cycleCounters && day.cycleCounters.length > 0) {
+            <div class="flex flex-col gap-0.5 items-end max-w-[65%]">
+              @for (counter of day.cycleCounters; track counter.name) {
+              <span [style.color]="counter.color" [style.borderColor]="counter.color + '40'" [title]="counter.name"
+                class="text-[8px] font-mono font-bold px-1 rounded bg-neutral-950 border leading-none py-0.5">
+                {{ counter.dayNumber }}
+              </span>
+              }
+            </div>
+            }
+          </div>
+
+          <!-- Нижняя строка: Точки-индикаторы фактически произошедших событий -->
+          <div class="flex flex-wrap gap-1 mt-2">
+            @for (tpl of day.templates; track tpl.id) {
+            <div [style.backgroundColor]="tpl.color" [title]="tpl.name"
+              class="w-2.5 h-2.5 rounded-full shadow-sm ring-1 ring-black/40"></div>
+            }
+          </div>
+
+        </div>
+        }
+      </div>
+
+    </div>
+
+    <!-- Настройка новых типов событий -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
+      <h3 class="text-sm font-bold tracking-tight text-neutral-200 font-mono uppercase">Конструктор Событий</h3>
+
+      <!-- 🚨 НОВЫЙ БЛОК: Список существующих шаблонов с возможностью удаления -->
+      @if (templates().length > 0) {
+      <div class="space-y-2 border-b border-neutral-800 pb-4">
+        <label class="text-[10px] font-mono uppercase text-neutral-400 block mb-1">Активные типы событий:</label>
+        <div class="flex flex-col gap-1.5">
+          @for (tpl of templates(); track tpl.id) {
+          <div
+            class="flex items-center justify-between bg-neutral-950/60 border border-neutral-850 px-3 py-2 rounded-xl">
+            <div class="flex items-center gap-2">
+              <div [style.backgroundColor]="tpl.color" class="w-3 h-3 rounded-full ring-1 ring-black/30"></div>
+              <span class="text-xs font-medium text-neutral-200">{{ tpl.name }}</span>
+              @if (tpl.hasCycleCounter) {
+              <span
+                class="text-[8px] font-mono text-purple-400 bg-purple-950/20 border border-purple-900/30 px-1 rounded">цикл</span>
+              }
+            </div>
+
+            <!-- Иконка мусорного ведра / Крестик для удаления -->
+            <button (click)="deleteTemplate(tpl.id, $event)" title="Удалить событие"
+              class="text-neutral-500 hover:text-red-400 transition-colors text-xs font-mono px-2 py-0.5 rounded hover:bg-red-950/30">
+              ✕
+            </button>
+          </div>
+          }
+        </div>
+      </div>
+      }
+
+      <div class="space-y-3">
+        <input type="text" placeholder="Название (например: Месячные, Овуляция)" [(ngModel)]="templateName"
+          class="w-full bg-neutral-950 border border-neutral-800 p-3 rounded-xl text-sm focus:outline-none focus:border-purple-500 font-mono text-white" />
+
+        <!-- Выбор цвета из плитки палитры -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[10px] font-mono uppercase text-neutral-400">Выберите цвет события на календаре:</label>
+          <div class="flex gap-2 flex-wrap bg-neutral-950 p-2.5 border border-neutral-800 rounded-xl">
+            @for (c of colorPalette; track c) {
+            <div (click)="templateColor = c" [style.backgroundColor]="c" [class.ring-2]="templateColor === c"
+              class="w-6 h-6 rounded-full cursor-pointer ring-white transition-transform active:scale-90 shadow-md">
+            </div>
+            }
+          </div>
+        </div>
+
+        <!-- Переключатель счетчика циклов -->
+        <label
+          class="flex items-center gap-2 bg-neutral-950 border border-neutral-800 p-3 rounded-xl cursor-pointer select-none">
+          <input type="checkbox" [(ngModel)]="hasCycleCounter"
+            class="rounded border-neutral-800 bg-neutral-950 text-purple-600 focus:ring-purple-500 w-4 h-4" />
+          <span class="text-xs font-mono text-neutral-300">Включить автоматический счетчик дней цикла</span>
+        </label>
+
+        <button (click)="createTemplate()" [disabled]="!templateName.trim()"
+          class="w-full p-3 bg-purple-600 hover:bg-purple-500 disabled:bg-neutral-800 disabled:text-neutral-500 font-bold rounded-xl text-xs uppercase tracking-wider font-mono transition-all">
+          Зарегистрировать шаблон +
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>

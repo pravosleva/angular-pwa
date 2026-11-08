@@ -52,18 +52,36 @@ export const appRoutes: Routes = [
   },
   // --
 
-  // 3. Инфраструктура подпроекта: EVENT (Новый раздел с теми же гвардами защиты)
+  // 3. Инфраструктура подпроекта: EVENT
   {
     path: 'event',
     pathMatch: 'full',
-    redirectTo: 'auth/detect-user?from=/event' // Если зашли без ID — отправляем на детектор с меткой /event
+    redirectTo: 'auth/detect-user?from=/event'
   },
-  // {
-  //   path: 'event/:tg_chat_id',
-  //   loadComponent: () => import('./pages/event/dashboard/dashboard').then(m => m.EventDashboardComponent), // Ваш будущий компонент событий
-  //   canActivate: [authGuard],
-  //   title: 'Events | Панель управления событиями'
-  // },
+  {
+    path: 'event/:tg_chat_id',
+    loadComponent: () => import('./pages/event/dashboard/dashboard').then(m => m.EventDashboardComponent),
+    canActivate: [authGuard],
+    title: 'Events | Список проектов'
+  },
+  {
+    path: 'event/:tg_chat_id/:project_id',
+    loadComponent: () => import('./pages/event/project-view/project-view').then(m => m.ProjectViewComponent),
+    canActivate: [authGuard],
+    title: 'Events | Панель проекта и Календарь'
+  },
+  {
+    path: 'event/:tg_chat_id/:project_id/day/:date', // :date в формате YYYY-MM-DD
+    loadComponent: () => import('./pages/event/day-details/day-details').then(m => m.DayDetailsComponent),
+    canActivate: [authGuard],
+    title: 'Events | События дня'
+  },
+  {
+    path: 'event/:tg_chat_id/:project_id/analytics',
+    loadComponent: () => import('./pages/event/analytics/analytics').then(m => m.AnalyticsComponent),
+    canActivate: [authGuard],
+    title: 'Events | Аналитика циклов'
+  },
 
   // Фолбек: если роут не найден, перенаправляем в корень приватной панели
   {

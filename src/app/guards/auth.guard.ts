@@ -1,51 +1,35 @@
 import { inject } from '@angular/core';
 import { Router, CanActivateFn, UrlTree } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
 import { of, Observable } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
-
-interface CheckJwtResponse {
-  ok: boolean;
-  message?: string;
-}
+import { map } from 'rxjs/operators';
+import { AuthService } from '../services/auth.service';
 
 export const authGuard: CanActivateFn = (route, state): Observable<boolean | UrlTree> => {
-  const http = inject(HttpClient);
   const router = inject(Router);
+  const authService = inject(AuthService); // Внедряем AuthService вместо HttpClient
 
   // 1. Извлекаем chat_id из параметров пути
   const chat_id = route.paramMap.get('tg_chat_id');
   const targetChatId = chat_id ? Number(chat_id) : null;
 
-  // Если зашли на плоский '/autopark' без id, сразу уводим на логин
+  // Если зашли на плоский URL без id, сразу уводим на логин
   if (!targetChatId || Number.isNaN(targetChatId)) {
     console.warn('⚠️ [Auth Guard]: Отсутствует tg_chat_id в пути. Редирект на авторизацию.');
     return of(createLoginRedirect(router, state.url, ''));
   }
 
-  const apiUrl = 'https://pravosleva.pro/express-helper/pravosleva-bot-2021/autopark-2022/check-jwt';
+  console.log(`🛡️ [Auth Guard]: Делегирование верификации JWT сервису для сессии ${targetChatId}...`);
 
-  console.log(`🛡️ [Auth Guard]: Криптографическая верификация JWT для сессии ${targetChatId}...`);
-
-  // 2. Отправляем запрос на /check-jwt
-  return http.post<CheckJwtResponse>(
-    apiUrl,
-    { tested_chat_id: targetChatId }, // Соответствует контракту бэкенда checkJWT
-    { withCredentials: true }         // Передаем HTTP-Only куки
-  ).pipe(
+  // 2. Используем метод сервиса (обработка catchError и base URL уже внутри него)
+  return authService.checkJwt(targetChatId).pipe(
     map((res) => {
       if (res && res.ok === true) {
         console.log('🟢 [Auth Guard]: Токен валиден, подпись совпадает. Доступ разрешен.');
         return true;
       }
 
-      console.warn('🚨 [Auth Guard]: Токен не валиден или подменен. Отказ в доступе.');
+      console.warn('🚨 [Auth Guard]: Токен не валиден или отсутствует кука. Отказ в доступе.');
       return createLoginRedirect(router, state.url, String(targetChatId));
-    }),
-    catchError((err) => {
-      console.error('🔒 [Auth Guard]: Доступ заблокирован (Сессия истекла или отсутствует кука):', err.status);
-      // Ловим 400, 500 и ошибки сети — гарантированно разлогиниваем в UI
-      return of(createLoginRedirect(router, state.url, String(targetChatId)));
     })
   );
 };

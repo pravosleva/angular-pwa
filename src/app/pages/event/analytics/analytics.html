@@ -1,0 +1,117 @@
+<div class="min-h-screen bg-neutral-950 font-sans text-neutral-100 p-4 md:p-8">
+  <div class="max-w-xl mx-auto space-y-6">
+
+    <!-- Навигация верхнего уровня -->
+    <div class="flex items-center justify-between">
+      <a [routerLink]="['/event', tg_chat_id(), project_id()]"
+        class="text-xs font-mono text-neutral-400 hover:text-purple-400 transition-colors">
+        ← Вернуться к календарю
+      </a>
+      <span class="text-xs font-mono text-neutral-500">Аналитический шлюз</span>
+    </div>
+
+    <!-- Заголовок страницы -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl">
+      <h2 class="text-xl font-bold text-neutral-100 tracking-tight">Аналитика и Метрики</h2>
+      <p class="text-xs text-neutral-400 mt-1">Автоматический расчет стабильности и длины циклов</p>
+    </div>
+
+    <!-- Основной контур вывода метрик -->
+    @for (stat of cycleStats(); track stat.templateId) {
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6">
+
+      <!-- Шапка события -->
+      <div class="flex items-center gap-2 border-b border-neutral-800 pb-3">
+        <div [style.backgroundColor]="stat.color" class="w-3.5 h-3.5 rounded-full ring-2 ring-black/30"></div>
+        <h3 class="text-base font-bold text-neutral-100">{{ stat.name }}</h3>
+      </div>
+
+      <!-- Сетка базовых карточек-показателей -->
+      <div class="grid grid-cols-3 gap-3 text-center">
+        <div class="bg-neutral-950 p-3 border border-neutral-850 rounded-xl">
+          <div class="text-[10px] font-mono text-neutral-500 uppercase">Минимум</div>
+          <div class="text-xl font-bold font-mono mt-1 text-neutral-200">{{ stat.minDays }} <span
+              class="text-xs font-normal text-neutral-500">дн.</span></div>
+        </div>
+        <div class="bg-purple-950/20 p-3 border border-purple-900/30 rounded-xl ring-1 ring-purple-500/10">
+          <div class="text-[10px] font-mono text-purple-400 uppercase font-bold">В среднем</div>
+          <div class="text-xl font-bold font-mono mt-1 text-purple-300">{{ stat.averageDays }} <span
+              class="text-xs font-normal text-purple-500">дн.</span></div>
+        </div>
+        <div class="bg-neutral-950 p-3 border border-neutral-850 rounded-xl">
+          <div class="text-[10px] font-mono text-neutral-500 uppercase">Максимум</div>
+          <div class="text-xl font-bold font-mono mt-1 text-neutral-200">{{ stat.maxDays }} <span
+              class="text-xs font-normal text-neutral-500">дн.</span></div>
+        </div>
+      </div>
+
+      <!-- 📊 УМНЫЙ КАСТОМНЫЙ SVG-ГРАФИК СТАБИЛЬНОСТИ -->
+      <div class="space-y-2">
+        <label class="text-[10px] font-mono uppercase text-neutral-400 block pl-0.5">Диаграмма колебаний циклов:</label>
+        <div class="bg-neutral-950 p-4 border border-neutral-850 rounded-xl">
+
+          <svg viewBox="0 0 400 120" class="w-full h-auto overflow-visible">
+            <!-- Сетка-ориентир на 28 дней (медиана) -->
+            <line x1="0" y1="60" x2="400" y2="60" stroke="#262626" stroke-dasharray="4" stroke-width="1" />
+            <text x="390" y="55" fill="#525252" font-size="8" font-family="monospace" text-anchor="end">Медиана</text>
+
+            <!-- Отрисовка ломаной линии графиков -->
+            <polyline fill="none" [attr.stroke]="stat.color" stroke-width="3" stroke-linecap="round"
+              stroke-linejoin="round" [attr.points]="
+                  stat.history.length === 1
+                  ? '0,60 400,60'
+                  : (stat.history.map((c, idx) =>
+                      (idx * (400 / (stat.history.length - 1))) + ',' + (110 - (c.durationDays * 2))
+                    ).join(' '))
+                " />
+
+            <!-- Интерактивные точки-ноды поверх линии -->
+            @for (c of stat.history; track c.periodStart; let idx = $index) {
+            <circle [attr.cx]="stat.history.length === 1 ? 200 : idx * (400 / (stat.history.length - 1))"
+              [attr.cy]="110 - (c.durationDays * 2)" r="5" [attr.fill]="stat.color" stroke="#0a0a0a" stroke-width="2" />
+            <!-- Текст с количеством дней над точкой -->
+            <text [attr.x]="stat.history.length === 1 ? 200 : idx * (400 / (stat.history.length - 1))"
+              [attr.y]="100 - (c.durationDays * 2)" fill="#d4d4d4" font-size="9" font-family="monospace"
+              font-weight="bold" text-anchor="middle">
+              {{ c.durationDays }}д
+            </text>
+            }
+          </svg>
+
+        </div>
+      </div>
+
+      <!-- Историческая лента логов -->
+      <div class="space-y-2">
+        <label class="text-[10px] font-mono uppercase text-neutral-400 block pl-0.5">История завершенных
+          интервалов:</label>
+        <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+          @for (item of stat.history; track item.periodStart) {
+          <div
+            class="flex justify-between items-center bg-neutral-950/50 border border-neutral-850 px-3 py-2 rounded-xl text-xs font-mono">
+            <div class="text-neutral-400">
+              <span>{{ item.periodStart | date:'dd.MM.yyyy' }}</span>
+              <span class="mx-1.5 text-neutral-600">→</span>
+              <span>{{ item.periodEnd | date:'dd.MM.yyyy' }}</span>
+            </div>
+            <div class="font-bold" [style.color]="stat.color">{{ item.durationDays }} дней</div>
+          </div>
+          }
+        </div>
+      </div>
+
+    </div>
+    } @empty {
+    <!-- Заглушка, если данных еще мало -->
+    <div class="p-12 bg-neutral-900 border border-neutral-800 border-dashed rounded-2xl text-center space-y-3">
+      <div class="text-3xl">📊</div>
+      <p class="text-sm font-medium text-neutral-400">Недостаточно данных для построения аналитики</p>
+      <p class="text-xs text-neutral-500 font-mono max-w-xs mx-auto leading-relaxed">
+        Чтобы система смогла рассчитать среднюю длину цикла, отметьте выбранное циклическое событие минимум в двух
+        разных месяцах.
+      </p>
+    </div>
+    }
+
+  </div>
+</div>
