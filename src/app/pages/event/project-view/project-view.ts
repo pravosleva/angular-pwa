@@ -37,6 +37,8 @@ export class ProjectViewComponent implements OnInit {
   public templateColor = '#EF4444';
   public hasCycleCounter = false;
 
+  public templateBreakColor = ''; // HEX-код цвета для остановки счетчика
+
   public readonly monthName = computed(() => {
     const date = new Date(this.currentYear(), this.currentMonth(), 1);
     return date.toLocaleString('ru-RU', { month: 'long', year: 'numeric' });
@@ -73,7 +75,8 @@ export class ProjectViewComponent implements OnInit {
       name: this.templateName.trim(),
       description: this.templateDesc.trim(),
       color: this.templateColor,
-      hasCycleCounter: this.hasCycleCounter
+      hasCycleCounter: this.hasCycleCounter,
+      breakOnColor: this.hasCycleCounter && this.templateBreakColor ? this.templateBreakColor : undefined,
     };
     this.templates.update(prev => [...prev, nTpl]);
     this.templateName = '';
@@ -149,7 +152,7 @@ export class ProjectViewComponent implements OnInit {
       });
     }
 
-    // 2. Расчет счетчиков цикла «Вперед» для каждого активного шаблона
+        // 2. Расчет счетчиков цикла «Вперед» для каждого активного шаблона
     const cycleTemplates = allTpls.filter(t => t.hasCycleCounter);
 
     cycleTemplates.forEach(tpl => {
@@ -170,12 +173,32 @@ export class ProjectViewComponent implements OnInit {
         const latestLogBeforeDay = pastLogs[pastLogs.length - 1];
         const nextLog = tplLogs.find(l => l.dateStr > latestLogBeforeDay.dateStr);
 
+        // Проверяем базовые границы цикла
         if (day.dateStr >= latestLogBeforeDay.dateStr && (!nextLog || day.dateStr < nextLog.dateStr)) {
+
+          // 🚨 НОВАЯ ЛОГИКА ОБРЫВА СЧЕТЧИКА:
+          if (tpl.breakOnColor) {
+            // Ищем, были ли в промежутке между стартом этого цикла (latestLogBeforeDay)
+            // и текущим днем (day) логи событий с блокирующим цветом
+            const hasBlockingEventInInterval = allLogs.some(log => {
+              // Лог должен быть внутри текущего интервала трекинга
+              const isInsideInterval = log.dateStr >= latestLogBeforeDay.dateStr && log.dateStr <= day.dateStr;
+              if (!isInsideInterval) return false;
+
+              // Проверяем, совпадает ли цвет шаблона этого лога с блокирующим цветом
+              const logTemplate = allTpls.find(t => t.id === log.templateId);
+              return logTemplate?.color === tpl.breakOnColor;
+            });
+
+            // Если блокирующее событие уже наступило — прерываем итерацию, не выводя счетчик
+            if (hasBlockingEventInInterval) return;
+          }
+
+          // Если блокировки нет или событие еще не произошло — считаем дни как обычно
           const startTs = new Date(latestLogBeforeDay.dateStr).getTime();
           const currentTs = new Date(day.dateStr).getTime();
           const diffDays = Math.round((currentTs - startTs) / (1000 * 60 * 60 * 24)) + 1;
 
-          // 🚨 ДОБАВЛЯЕМ СЧЕТЧИК В МАССИВ ДНЯ: Привязываем цвет и имя шаблона
           day.cycleCounters?.push({
             color: tpl.color,
             dayNumber: diffDays,

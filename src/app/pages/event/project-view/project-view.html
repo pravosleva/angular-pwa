@@ -149,6 +149,22 @@
           <span class="text-xs font-mono text-neutral-300">Включить автоматический счетчик дней цикла</span>
         </label>
 
+        <!-- 🚨 НОВЫЙ БЛОК: Выбор цвета-киллера (показывается, только если чекбокс активен) -->
+        @if (hasCycleCounter && templates().length > 0) {
+        <div class="flex flex-col gap-1.5 bg-neutral-950 p-3 border border-neutral-800 rounded-xl animate-fade-in">
+          <label for="breakColor" class="text-[10px] font-mono uppercase text-neutral-400">Прерывать отсчет при встрече
+            с цветом:</label>
+          <select id="breakColor" [(ngModel)]="templateBreakColor"
+            class="bg-neutral-900 border border-neutral-800 p-2 rounded-lg text-xs text-neutral-200 focus:outline-none focus:border-purple-500 font-mono">
+            <option value="">Не прерывать (идти до конца)</option>
+            <!-- Выводим цвета только ОСТАЛЬНЫХ существующих шаблонов -->
+            @for (t of templates(); track t.id) {
+            <option [value]="t.color">{{ t.name }} ({{ t.color }})</option>
+            }
+          </select>
+        </div>
+        }
+
         <button (click)="createTemplate()" [disabled]="!templateName.trim()"
           class="w-full p-3 bg-purple-600 hover:bg-purple-500 disabled:bg-neutral-800 disabled:text-neutral-500 font-bold rounded-xl text-xs uppercase tracking-wider font-mono transition-all">
           Зарегистрировать шаблон +

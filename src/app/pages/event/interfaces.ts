@@ -11,6 +11,7 @@ export interface IEventTemplate {
   description?: string;
   color: string; // HEX-код цвета (например, '#EF4444')
   hasCycleCounter: boolean;
+  breakOnColor?: string; // 🚨 НОВОЕ: HEX-цвет события, которое обрывает этот счетчик
 }
 
 export interface IEventLog {
