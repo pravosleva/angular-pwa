@@ -8,6 +8,14 @@ import { catchError, debounceTime, distinctUntilChanged, switchMap, tap, startWi
 import { UICarProcess } from '../car-details/car-details';
 import { RouterLink } from '@angular/router';
 
+export interface IReportBookmark {
+  id: string;
+  tg_chat_id: string;
+  project_id: string;
+  mileage: number;
+  carName: string;
+}
+
 type TProjectDataResponse = {
   ok: boolean;
   name?: string;
@@ -54,6 +62,20 @@ export class ReportComponent implements OnInit, OnDestroy {
   // Реактивный сигнал пробега, изолированный под текущий project_id
   public readonly currentVehicleMileage = signal<number>(0);
 
+  // 🚨 НОВОЕ: Сигнал коллекции закладок
+  public readonly bookmarks = signal<IReportBookmark[]>([]);
+
+  // 🚨 НОВОЕ: Проверка, добавлена ли текущая страница в закладки
+  public readonly isCurrentBookmarked = computed(() => {
+    const chatId = this.tg_chat_id();
+    const projectId = this.project_id();
+    const mileage = this.currentVehicleMileage();
+
+    return this.bookmarks().some(
+      b => b.tg_chat_id === chatId && b.project_id === projectId && b.mileage === mileage
+    );
+  });
+
   constructor() {
     /**
      * 🔥 ОБНОВЛЕНО: Умный расчет пробега с приоритетом URL.
@@ -79,6 +101,11 @@ export class ReportComponent implements OnInit, OnDestroy {
         console.log(`ℹ️ [Report Mileage]: Используем пробег из localStorage/fallback: ${this.currentVehicleMileage()} км.`);
       }
     }, { allowSignalWrites: true });
+
+    // 🚨 НОВОЕ: Эффект для автоматической синхронизации закладок с localStorage
+    effect(() => {
+      localStorage.setItem('autopark_report_bookmarks', JSON.stringify(this.bookmarks()));
+    });
   }
 
   /**
@@ -131,6 +158,50 @@ export class ReportComponent implements OnInit, OnDestroy {
       { property: 'og:title', content: 'AutoPark | Открытый технический отчет' },
       { property: 'og:type', content: 'website' }
     ]);
+
+    // 🚨 НОВОЕ: Инициализация закладок при загрузке компонента
+    const saved = localStorage.getItem('autopark_report_bookmarks');
+    if (saved) {
+      this.bookmarks.set(JSON.parse(saved));
+    }
+  }
+
+  // 🚨 НОВОЕ: Добавить текущую конфигурацию в закладки
+  public toggleBookmark(): void {
+    const chatId = this.tg_chat_id();
+    const projectId = this.project_id();
+    const mileage = this.currentVehicleMileage();
+    const carName = this.currentReport()?.name || `Авто #${projectId}`;
+
+    if (this.isCurrentBookmarked()) {
+      // Удаляем из закладок
+      this.bookmarks.update(prev => prev.filter(
+        b => !(b.tg_chat_id === chatId && b.project_id === projectId && b.mileage === mileage)
+      ));
+    } else {
+      // Добавляем новую закладку
+      const newBookmark: IReportBookmark = {
+        id: `bm_${Date.now()}`,
+        tg_chat_id: chatId,
+        project_id: projectId,
+        mileage: mileage,
+        carName: carName
+      };
+      this.bookmarks.update(prev => [...prev, newBookmark]);
+    }
+  }
+
+  // 🚨 НОВОЕ: Точечное удаление закладки из списка по ID
+  public deleteBookmark(id: string, event: Event): void {
+    event.stopPropagation(); // Предотвращаем триггер перехода по ссылке
+    this.bookmarks.update(prev => prev.filter(b => b.id !== id));
+  }
+
+  // 🚨 НОВОЕ: Хелпер для проверки подсвечивания активной закладки в списке
+  public isBookmarkActive(b: IReportBookmark): boolean {
+    return b.tg_chat_id === this.tg_chat_id() &&
+           b.project_id === this.project_id() &&
+           b.mileage === this.currentVehicleMileage();
   }
 
   public readonly currentReport = computed<TProjectDataResponse | null>(() => {

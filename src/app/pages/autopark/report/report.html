@@ -8,18 +8,90 @@
       </a>
     </div>
 
-    <!-- Публичный заголовок бланка отчета -->
-    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl text-center space-y-2">
-      <div
-        class="text-[10px] font-mono bg-blue-950/50 border border-blue-900/50 text-blue-400 px-3 py-1 rounded-full inline-block uppercase tracking-wider font-bold">
-        📋 Открытый технический отчет системы AutoPark
+    <!-- Публичный заголовок бланка отчета (Рефакторинг под стиль car-details) -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4 relative overflow-hidden">
+
+      <!-- Интерактивная кнопка-звезда управления закладками в углу -->
+      <button (click)="toggleBookmark()" [title]="isCurrentBookmarked() ? 'Удалить из закладок' : 'Добавить в закладки'"
+        class="absolute top-6 right-6 w-9 h-9 rounded-xl border transition-all flex items-center justify-center text-sm active:scale-90 z-20"
+        [ngClass]="{
+                'bg-amber-950/40 border-amber-500/40 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.15)]': isCurrentBookmarked(),
+                'bg-neutral-950/60 border-neutral-800 text-neutral-500 hover:text-neutral-300 hover:border-neutral-700': !isCurrentBookmarked()
+              }">
+        ★
+      </button>
+
+      <!-- Шапка с названием и спецификацией -->
+      <div class="space-y-1 text-left pr-10">
+        <div
+          class="text-[9px] font-mono bg-blue-950/40 border border-blue-900/40 text-blue-400 px-2 py-0.5 rounded-md inline-block uppercase tracking-wider font-bold mb-1">
+          📋 Публичная выписка ТО
+        </div>
+
+        @if (currentReport(); as car) {
+        <h2 class="text-xl font-bold tracking-tight text-neutral-100 leading-snug">{{ car.name }}</h2>
+        <p class="text-sm text-neutral-400 font-mono leading-relaxed">{{ car.description || 'Спецификация не указана' }}
+        </p>
+        } @else {
+        <h2 class="text-xl font-bold tracking-tight text-neutral-400 animate-pulse">Загрузка спецификации...</h2>
+        }
       </div>
 
-      @if (currentReport(); as car) {
-      <h2 class="text-2xl font-black tracking-tight text-neutral-100 mt-2">{{ car.name }}</h2>
-      <p class="text-xs text-neutral-400 font-mono">{{ car.description || 'Спецификация не указана' }}</p>
-      }
+      <!-- Блок пробега с нижней границей в стиле car-details -->
+      <div class="pt-3 border-t border-neutral-800/80 flex flex-col gap-1.5 text-left">
+        <label class="text-[10px] font-mono uppercase text-neutral-400 tracking-wider">
+          Зафиксированный срез пробега:
+        </label>
+        <div
+          class="w-full p-2.5 bg-neutral-950 border border-neutral-850 rounded-xl font-mono text-sm text-blue-400 font-bold flex items-center justify-between shadow-inner">
+          <span>{{ currentVehicleMileage() | number }} км</span>
+          <span
+            class="text-[9px] uppercase bg-blue-950/30 text-blue-400 px-1.5 py-0.5 rounded border border-blue-900/30">Active</span>
+        </div>
+      </div>
+
+      <!-- Подвальные метаданные проекта -->
+      <div class="flex flex-wrap gap-2 text-[10px] font-mono pt-1 text-left">
+        <span class="bg-neutral-950 border border-neutral-850 px-2 py-1 rounded text-neutral-500">
+          ID проекта: {{ project_id() }}
+        </span>
+        <span class="bg-neutral-950 border border-neutral-850 px-2 py-1 rounded text-neutral-500">
+          Контур: #{{ tg_chat_id() }}
+        </span>
+      </div>
+
     </div>
+
+    <!-- 🚨 НОВОЕ: Лента быстрых закладок -->
+    @if (bookmarks().length > 0) {
+    <div class="space-y-2 animate-fade-in">
+      <label class="text-[10px] font-mono uppercase text-neutral-400 pl-1 block">Сохраненные закладки отчетов:</label>
+
+      <div class="flex gap-2 overflow-x-auto pb-1 custom-scrollbar scroll-smooth">
+        @for (bm of bookmarks(); track bm.id) {
+        <div [routerLink]="['/autopark', bm.tg_chat_id, bm.project_id, 'report']"
+          [queryParams]="{ mileage: bm.mileage }"
+          class="flex items-center gap-2 px-3 py-2 border rounded-xl font-mono text-xs cursor-pointer select-none transition-all active:scale-95 whitespace-nowrap"
+          [ngClass]="{
+                   'bg-blue-950/30 border-blue-500/50 text-blue-300 font-bold ring-1 ring-blue-500/20': isBookmarkActive(bm),
+                   'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200': !isBookmarkActive(bm)
+                 }">
+
+          <div class="flex flex-col text-left leading-tight">
+            <span class="text-[10px] opacity-70 font-sans truncate max-w-[100px]">{{ bm.carName }}</span>
+            <span>{{ bm.mileage | number }} км</span>
+          </div>
+
+          <!-- Кнопка точечного удаления закладки на месте -->
+          <button (click)="deleteBookmark(bm.id, $event)" title="Удалить закладку"
+            class="w-5 h-5 rounded-md hover:bg-red-950/40 text-neutral-500 hover:text-red-400 transition-colors flex items-center justify-center font-bold text-[10px] ml-1 bg-neutral-950/40 border border-neutral-850">
+            ✕
+          </button>
+        </div>
+        }
+      </div>
+    </div>
+    }
 
     <!-- Индикатор загрузки публичных данных -->
     @if (isLoading()) {
