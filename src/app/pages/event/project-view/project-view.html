@@ -54,24 +54,29 @@
         @for (day of calendarWeeks(); track day.dateStr) {
         <div [routerLink]="day.isCurrentMonth ? ['/event', tg_chat_id(), project_id(), 'day', day.dateStr] : null"
           [ngClass]="{
-           'bg-neutral-950 border-neutral-900 opacity-20 pointer-events-none': !day.isCurrentMonth,
-           'bg-neutral-900 hover:bg-neutral-850 border-neutral-800 hover:border-neutral-700 cursor-pointer': day.isCurrentMonth
-         }"
-          class="border rounded-xl p-1.5 min-h-[72px] flex flex-col justify-between relative transition-all active:scale-95">
+       'bg-neutral-950 border-neutral-900 opacity-20 pointer-events-none': !day.isCurrentMonth,
+       'bg-neutral-900 border-neutral-800 hover:border-neutral-750 cursor-pointer': day.isCurrentMonth && day.templates.length === 0
+     }" [style.border-color]="day.templates.length === 1 ? day.templates[0].color + '80' : null" [style.background]="day.templates.length === 1
+        ? 'linear-gradient(135deg, #171717 70%, ' + day.templates[0].color + '25 100%)'
+        : (day.templates.length > 1
+            ? 'linear-gradient(135deg, #171717 50%, ' + day.templates[0].color + '20 80%, ' + day.templates[1].color + '20 100%)'
+            : null)"
+          class="border rounded-2xl p-2 min-h-[76px] flex flex-col justify-between relative transition-all active:scale-95 shadow-md">
 
-          <!-- Верхняя строка: Номер дня месяца и стек счетчиков циклов -->
+          <!-- Верхняя строка: Число и Счетчики -->
           <div class="flex items-start justify-between w-full gap-1">
+            <!-- Если день отмечен, делаем цифру жирнее и ярче -->
             <span class="text-xs font-mono font-bold"
-              [class.text-purple-400]="day.cycleCounters && day.cycleCounters.length > 0">
+              [style.color]="day.templates.length === 1 ? day.templates[0].color : (day.cycleCounters && day.cycleCounters.length > 0 ? '#c084fc' : '#a3a3a3')">
               {{ day.dayNumber }}
             </span>
 
-            <!-- Стек параллельных разноцветных счетчиков в углу ячейки -->
+            <!-- Стек счетчиков циклов -->
             @if (day.cycleCounters && day.cycleCounters.length > 0) {
             <div class="flex flex-col gap-0.5 items-end max-w-[65%]">
               @for (counter of day.cycleCounters; track counter.name) {
-              <span [style.color]="counter.color" [style.borderColor]="counter.color + '40'" [title]="counter.name"
-                class="text-[8px] font-mono font-bold px-1 rounded bg-neutral-950 border leading-none py-0.5">
+              <span [style.color]="counter.color" [style.borderColor]="counter.color + '40'"
+                class="text-[8px] font-mono font-black px-1 rounded bg-neutral-950 border leading-none py-0.5 shadow-sm">
                 {{ counter.dayNumber }}
               </span>
               }
@@ -79,14 +84,13 @@
             }
           </div>
 
-          <!-- Нижняя строка: Точки-индикаторы фактически произошедших событий -->
-          <div class="flex flex-wrap gap-1 mt-2">
+          <!-- Нижняя строка: Более крупные горизонтальные пилюли вместо точек -->
+          <div class="flex gap-1 mt-2 w-full overflow-hidden">
             @for (tpl of day.templates; track tpl.id) {
-            <div [style.backgroundColor]="tpl.color" [title]="tpl.name"
-              class="w-2.5 h-2.5 rounded-full shadow-sm ring-1 ring-black/40"></div>
+            <div [style.backgroundColor]="tpl.color" class="h-1.5 flex-1 rounded-full shadow-sm ring-1 ring-black/30">
+            </div>
             }
           </div>
-
         </div>
         }
       </div>
