@@ -1,0 +1,48 @@
+{
+  "name": "Hub | Панель управления",
+  "short_name": "Hub",
+  "theme_color": "#0a0a0a",
+  "background_color": "#0a0a0a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/ng/",
+  "start_url": "/ng/",
+  "categories": [
+    "utilities",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/ng/assets/icons/manifest-icon-192.maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ng/assets/icons/manifest-icon-512.maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/ng/assets/icons/apple-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/ng/assets/icons/apple-splash-750-1334.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/ng/assets/icons/apple-splash-1792-828.png",
+      "sizes": "1792x828",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ]
+}

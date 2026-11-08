@@ -28,12 +28,23 @@ import { IEventProject } from '../interfaces';
 
           @for (p of projects(); track p.id) {
             <div [routerLink]="['/event', tg_chat_id(), p.id]"
-                 class="group p-5 bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-purple-900/50 rounded-2xl shadow-md transition-all active:scale-[0.99] cursor-pointer flex justify-between items-center">
-              <div>
+                 class="group p-5 bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 hover:border-purple-900/50 rounded-2xl shadow-md transition-all active:scale-[0.99] cursor-pointer flex justify-between items-center relative">
+
+              <div class="pr-4 flex-1">
                 <h4 class="text-base font-bold text-neutral-200 group-hover:text-purple-400 transition-colors">{{ p.name }}</h4>
-                <p class="text-xs text-neutral-400 font-mono mt-1">{{ p.description || 'Без описания' }}</p>
+                <p class="text-xs text-neutral-400 font-mono mt-1 leading-relaxed line-clamp-2">{{ p.description || 'Без описания' }}</p>
               </div>
-              <span class="text-neutral-600 group-hover:text-purple-400 transition-colors font-bold font-mono">→</span>
+
+              <!-- Блок управления с укрупненной кнопкой удаления -->
+              <div class="flex items-center gap-2 pl-2">
+                <button (click)="deleteProject(p.id, $event)"
+                        title="Удалить проект полностью"
+                        class="w-10 h-10 rounded-xl bg-neutral-950/80 hover:bg-red-950/40 border border-neutral-850 hover:border-red-900/50 text-neutral-400 hover:text-red-400 transition-all flex items-center justify-center text-sm font-mono active:scale-90 relative z-10 shadow-inner">
+                  ✕
+                </button>
+                <span class="text-neutral-600 group-hover:text-purple-400 transition-colors font-bold font-mono pl-1 sm:inline-block hidden">→</span>
+              </div>
+
             </div>
           } @empty {
             <div class="p-8 bg-neutral-900 border border-neutral-800 border-dashed rounded-2xl text-center text-sm text-neutral-500 font-mono">
@@ -85,5 +96,28 @@ export class EventDashboardComponent implements OnInit {
     localStorage.setItem(`event_projects_${this.tg_chat_id()}`, JSON.stringify(updated));
     this.newName = '';
     this.newDesc = '';
+  }
+
+  /**
+   * Каскадное удаление проекта, его шаблонов событий и журналов комментариев
+   */
+  public deleteProject(projectId: string, event: Event): void {
+    // Останавливаем всплытие клика, чтобы при нажатии на крестик не происходил переход внутрь проекта
+    event.stopPropagation();
+
+    if (!confirm('Вы уверены, что хотите полностью удалить этот проект? Все вложенные события, циклы и комментарии будут безвозвратно стерты.')) {
+      return;
+    }
+
+    // 1. Удаляем сам проект из списка и обновляем localStorage проектов
+    const updatedProjects = this.projects().filter(p => p.id !== projectId);
+    this.projects.set(updatedProjects);
+    localStorage.setItem(`event_projects_${this.tg_chat_id()}`, JSON.stringify(updatedProjects));
+
+    // 2. Каскадно вычищаем вложенные структуры данных, привязанные к этому project_id
+    localStorage.removeItem(`event_tpls_${projectId}`);
+    localStorage.removeItem(`event_logs_${projectId}`);
+
+    console.log(`🧹 [Event Dashboard]: Проект #${projectId} и весь его кэш успешно стерты.`);
   }
 }

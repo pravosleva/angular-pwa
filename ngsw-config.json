@@ -31,7 +31,6 @@
     {
       "name": "autopark-api-cache",
       "urls": [
-        "https://pravosleva.pro**",
         "https://pravosleva.pro**"
       ],
       "cacheConfig": {

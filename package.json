@@ -4,9 +4,10 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve --configuration development",
-    "build": "ng build",
+    "build": "node src/manifest.template.js && ng build --configuration=production",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "_docs:pwa-gen": "npx pwa-asset-generator public/energise.svg public/assets/icons --no-manifest --background \"#0a0a0a\" --padding \"15%\" --type png"
   },
   "private": true,
   "packageManager": "yarn@1.22.22",
@@ -17,7 +18,7 @@
     "@angular/forms": "^22.2.0",
     "@angular/platform-browser": "^22.2.0",
     "@angular/router": "^22.2.0",
-    "@angular/service-worker": "^22.2.4",
+    "@angular/service-worker": "^22.2.5",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -31,6 +32,7 @@
     "msw": "^3.0.4",
     "postcss": "^8.5.3",
     "prettier": "^3.8.1",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4.1.12",
     "typescript": "~6.0.2",
     "vitest": "^5.0.0"
